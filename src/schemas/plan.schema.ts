@@ -5,6 +5,7 @@ export const planSchema = z.object({
   nome: z.string().min(1, "Informe o nome do plano"),
   descricao: z.string().optional(),
   dataProva: z.string().optional(),
+  diasEstudo: z.array(z.string()).min(1, "Selecione ao menos um dia"),
   metaDiaria: z.number().min(0),
   metaSemanal: z.number().min(0),
   metaMensal: z.number().min(0),

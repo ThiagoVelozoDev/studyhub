@@ -19,14 +19,21 @@ npm run dev
 
 ## Regras de segurança do Firestore
 
-Cada documento das coleções `editals`, `plans`, `studySessions` e `goals`
-possui um campo `userId`. Restrinja leitura/escrita ao dono do documento, e
-para `editalSubjects`/`editalTopics`/`planSubjects`/`planTopics` valide pelo
-`editalId`/`planoId` do documento pai.
+Todo documento — incluindo `editalSubjects`/`editalTopics`/`planSubjects`/
+`planTopics` — possui um campo `userId` denormalizado diretamente nele
+(não apenas nos documentos de topo `editals`/`plans`/`studySessions`/
+`goals`). Leitura/escrita é restrita ao dono comparando esse campo com
+`request.auth.uid`; posse **não** é validada via lookup no documento pai,
+porque o Firestore rejeita a query inteira quando a regra depende de um
+`get()` cruzado. Ver `docs/CONFIGURATION.md` para o conteúdo completo das
+regras e o motivo.
 
-## Estrutura
+## Documentação
 
-Veja `CLAUDECODE_INSTRUCTIONS.md` para a especificação completa do produto.
+Este projeto usa Claude Code e mantém documentação de contexto dedicada em
+[`CLAUDE.md`](CLAUDE.md) e na pasta [`docs/`](docs/) — stack, arquitetura,
+configuração, decisões e testes. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+é a especificação viva do produto (modelo de dados e padrões de projeto).
 
 ## Scripts
 

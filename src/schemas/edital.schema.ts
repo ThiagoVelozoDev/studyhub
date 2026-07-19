@@ -5,6 +5,8 @@ export const editalSchema = z.object({
   orgao: z.string().min(1, "Informe o órgão"),
   cargo: z.string().min(1, "Informe o cargo"),
   banca: z.string().min(1, "Informe a banca"),
+  categoria: z.string().min(1, "Selecione a carreira"),
+  public: z.boolean(),
   descricao: z.string().optional(),
   dataPublicacao: z.string().optional(),
   linkEdital: z.string().url("Informe uma URL válida").optional().or(z.literal("")),
@@ -45,6 +47,7 @@ export const importEditalSchema = z.object({
       orgao: z.string().min(1),
       cargo: z.string().min(1),
       banca: z.string().min(1),
+      categoria: z.string().min(1),
     })
     .partial()
     .optional(),

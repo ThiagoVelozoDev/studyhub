@@ -1,10 +1,16 @@
 import { NavLink } from "react-router-dom";
-import { GraduationCap } from "lucide-react";
+import { GraduationCap, Users } from "lucide-react";
 import { NAV_ITEMS } from "@/constants/navigation";
 import { MotivationalBanner } from "@/components/dashboard/MotivationalBanner";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/utils/cn";
 
 export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+  const { isAdmin } = useAuth();
+  const items = isAdmin
+    ? [...NAV_ITEMS, { label: "Usuários", path: "/admin/usuarios", icon: Users }]
+    : NAV_ITEMS;
+
   return (
     <div className="flex h-full flex-col bg-[#111827]">
       <div className="flex items-center gap-2 px-5 py-6">
@@ -13,8 +19,8 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
         </div>
         <span className="text-lg font-semibold text-white">StudyHub</span>
       </div>
-      <nav className="flex-1 space-y-1 px-3">
-        {NAV_ITEMS.map((item) => (
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3">
+        {items.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}

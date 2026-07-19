@@ -6,6 +6,10 @@ import {
   signOut,
   updateProfile,
   onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
+  sendPasswordResetEmail,
   type User,
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
@@ -30,12 +34,14 @@ export async function registerWithEmail(nome: string, email: string, password: s
   return credential.user;
 }
 
-export async function loginWithEmail(email: string, password: string) {
+export async function loginWithEmail(email: string, password: string, rememberMe: boolean) {
+  await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
   const credential = await signInWithEmailAndPassword(auth, email, password);
   return credential.user;
 }
 
-export async function loginWithGoogle() {
+export async function loginWithGoogle(rememberMe: boolean) {
+  await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
   const credential = await signInWithPopup(auth, googleProvider);
   const userDocRef = doc(db, COLLECTIONS.USERS, credential.user.uid);
   const existing = await getDoc(userDocRef);
@@ -52,4 +58,8 @@ export async function loginWithGoogle() {
 
 export async function logout() {
   await signOut(auth);
+}
+
+export async function resetPassword(email: string) {
+  await sendPasswordResetEmail(auth, email);
 }

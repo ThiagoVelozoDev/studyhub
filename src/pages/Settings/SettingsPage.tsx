@@ -1,15 +1,28 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Moon, Sun, LogOut } from "lucide-react";
+import { Moon, Sun, LogOut, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { StudyGoalsFields } from "@/components/forms/StudyGoalsFields";
+import { DIAS_ESTUDO_PADRAO } from "@/constants/diasSemana";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { useGoals, useUpsertGoal } from "@/hooks/useGoals";
+import { useResetUserProgress } from "@/hooks/useResetUserData";
 import { useNavigate } from "react-router-dom";
 
 export default function SettingsPage() {
@@ -17,20 +30,24 @@ export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
   const { data: goals } = useGoals();
   const upsertGoal = useUpsertGoal();
+  const resetProgress = useResetUserProgress();
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const navigate = useNavigate();
 
   const diariaGoal = goals?.find((g) => g.periodo === "diaria");
   const semanalGoal = goals?.find((g) => g.periodo === "semanal");
   const mensalGoal = goals?.find((g) => g.periodo === "mensal");
 
-  const [diaria, setDiaria] = useState("60");
-  const [semanal, setSemanal] = useState("300");
-  const [mensal, setMensal] = useState("1200");
+  const [diaria, setDiaria] = useState(60);
+  const [semanal, setSemanal] = useState(300);
+  const [mensal, setMensal] = useState(1200);
+  const [diasEstudo, setDiasEstudo] = useState<string[]>(DIAS_ESTUDO_PADRAO);
 
   useEffect(() => {
-    if (diariaGoal) setDiaria(String(diariaGoal.metaMinutos));
-    if (semanalGoal) setSemanal(String(semanalGoal.metaMinutos));
-    if (mensalGoal) setMensal(String(mensalGoal.metaMinutos));
+    if (diariaGoal) setDiaria(diariaGoal.metaMinutos);
+    if (semanalGoal) setSemanal(semanalGoal.metaMinutos);
+    if (mensalGoal) setMensal(mensalGoal.metaMinutos);
+    if (diariaGoal?.diasEstudo) setDiasEstudo(diariaGoal.diasEstudo);
   }, [diariaGoal, semanalGoal, mensalGoal]);
 
   async function saveGoals() {
@@ -38,15 +55,15 @@ export default function SettingsPage() {
       await Promise.all([
         upsertGoal.mutateAsync({
           goalId: diariaGoal?.id,
-          input: { periodo: "diaria", metaMinutos: Number(diaria) },
+          input: { periodo: "diaria", metaMinutos: diaria, diasEstudo },
         }),
         upsertGoal.mutateAsync({
           goalId: semanalGoal?.id,
-          input: { periodo: "semanal", metaMinutos: Number(semanal) },
+          input: { periodo: "semanal", metaMinutos: semanal },
         }),
         upsertGoal.mutateAsync({
           goalId: mensalGoal?.id,
-          input: { periodo: "mensal", metaMinutos: Number(mensal) },
+          input: { periodo: "mensal", metaMinutos: mensal },
         }),
       ]);
       toast.success("Metas atualizadas");
@@ -58,6 +75,18 @@ export default function SettingsPage() {
   async function handleSignOut() {
     await signOut();
     navigate("/login", { replace: true });
+  }
+
+  async function handleResetProgress() {
+    try {
+      await resetProgress.mutateAsync();
+      toast.success("Seus dados de progresso foram zerados");
+      navigate("/dashboard");
+    } catch {
+      toast.error("Não foi possível zerar os dados");
+    } finally {
+      setResetDialogOpen(false);
+    }
   }
 
   return (
@@ -104,22 +133,36 @@ export default function SettingsPage() {
           <CardDescription>Usadas como padrão no dashboard quando o plano não define metas próprias</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-2">
-              <Label>Diária (min)</Label>
-              <Input type="number" min={0} value={diaria} onChange={(e) => setDiaria(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Semanal (min)</Label>
-              <Input type="number" min={0} value={semanal} onChange={(e) => setSemanal(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Mensal (min)</Label>
-              <Input type="number" min={0} value={mensal} onChange={(e) => setMensal(e.target.value)} />
-            </div>
-          </div>
+          <StudyGoalsFields
+            metaDiaria={diaria}
+            onMetaDiariaChange={setDiaria}
+            metaSemanal={semanal}
+            onMetaSemanalChange={setSemanal}
+            metaMensal={mensal}
+            onMetaMensalChange={setMensal}
+            diasEstudo={diasEstudo}
+            onDiasEstudoChange={setDiasEstudo}
+          />
           <Button onClick={saveGoals} disabled={upsertGoal.isPending}>
             Salvar metas
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-destructive/40">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base text-destructive">
+            <AlertTriangle className="size-4" />
+            Zona de risco
+          </CardTitle>
+          <CardDescription>
+            Apaga todos os seus planos, disciplinas/tópicos de plano, sessões de estudo e metas.
+            Seus editais não são afetados.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="destructive" onClick={() => setResetDialogOpen(true)}>
+            Zerar meus dados
           </Button>
         </CardContent>
       </Card>
@@ -130,6 +173,25 @@ export default function SettingsPage() {
         <LogOut className="size-4" />
         Sair da conta
       </Button>
+
+      <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Zerar todos os seus dados?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso apaga permanentemente todos os seus planos, disciplinas/tópicos de plano,
+              sessões de estudo e metas. Seus editais não serão afetados. Esta ação não pode ser
+              desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetProgress} disabled={resetProgress.isPending}>
+              Zerar meus dados
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

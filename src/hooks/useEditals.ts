@@ -8,7 +8,16 @@ export function useEditals() {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["editals", user?.uid],
-    queryFn: () => editalService.listEditals(user!.uid),
+    queryFn: async () => {
+      const own = await editalService.listEditals(user!.uid);
+      // Se as firestore.rules publicadas ainda forem as antigas (sem suporte
+      // a `public`), essa query é rejeitada — cai para só os editais
+      // próprios em vez de quebrar a página inteira.
+      const public_ = await editalService.listPublicEditals().catch(() => []);
+      const ownIds = new Set(own.map((e) => e.id));
+      const merged = [...own, ...public_.filter((e) => !ownIds.has(e.id))];
+      return merged.sort((a, b) => b.createdAt - a.createdAt);
+    },
     enabled: !!user,
   });
 }
@@ -21,20 +30,20 @@ export function useEdital(editalId: string | undefined) {
   });
 }
 
-export function useEditalSubjects(editalId: string | undefined) {
+export function useEditalSubjects(editalId: string | undefined, opts?: { public?: boolean }) {
   const { user } = useAuth();
   return useQuery({
-    queryKey: ["editalSubjects", editalId],
-    queryFn: () => editalService.listEditalSubjects(editalId!, user!.uid),
+    queryKey: ["editalSubjects", editalId, opts?.public ?? false],
+    queryFn: () => editalService.listEditalSubjects(editalId!, user!.uid, opts),
     enabled: !!editalId && !!user,
   });
 }
 
-export function useEditalTopics(subjectId: string | undefined) {
+export function useEditalTopics(subjectId: string | undefined, opts?: { public?: boolean }) {
   const { user } = useAuth();
   return useQuery({
-    queryKey: ["editalTopics", subjectId],
-    queryFn: () => editalService.listEditalTopics(subjectId!, user!.uid),
+    queryKey: ["editalTopics", subjectId, opts?.public ?? false],
+    queryFn: () => editalService.listEditalTopics(subjectId!, user!.uid, opts),
     enabled: !!subjectId && !!user,
   });
 }
@@ -70,7 +79,7 @@ export function useUpdateEdital() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ editalId, input }: { editalId: string; input: Partial<EditalInput> }) =>
-      editalService.updateEdital(editalId, input),
+      editalService.updateEdital(editalId, user!.uid, input),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["editals", user?.uid] });
       queryClient.invalidateQueries({ queryKey: ["edital", variables.editalId] });

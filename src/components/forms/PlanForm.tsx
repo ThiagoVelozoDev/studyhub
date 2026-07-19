@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/form";
 import { planSchema, type PlanFormValues } from "@/schemas/plan.schema";
 import { useEditals } from "@/hooks/useEditals";
+import { StudyGoalsFields } from "./StudyGoalsFields";
+import { DIAS_ESTUDO_PADRAO } from "@/constants/diasSemana";
 import { Loader2 } from "lucide-react";
 
 interface PlanFormProps {
@@ -45,12 +47,18 @@ export function PlanForm({
       editalId: "",
       nome: "",
       descricao: "",
+      diasEstudo: DIAS_ESTUDO_PADRAO,
       metaDiaria: 60,
       metaSemanal: 300,
       metaMensal: 1200,
       ...defaultValues,
     },
   });
+
+  const metaDiaria = form.watch("metaDiaria");
+  const metaSemanal = form.watch("metaSemanal");
+  const metaMensal = form.watch("metaMensal");
+  const diasEstudo = form.watch("diasEstudo");
 
   return (
     <Form {...form}>
@@ -108,62 +116,19 @@ export function PlanForm({
             </FormItem>
           )}
         />
-        <div className="grid grid-cols-3 gap-3">
-          <FormField
-            control={form.control}
-            name="metaDiaria"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Meta diária (min)</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={field.value ?? ""}
-                    onChange={(e) => field.onChange(Number(e.target.value))}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="metaSemanal"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Meta semanal (min)</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={field.value ?? ""}
-                    onChange={(e) => field.onChange(Number(e.target.value))}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="metaMensal"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Meta mensal (min)</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={field.value ?? ""}
-                    onChange={(e) => field.onChange(Number(e.target.value))}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+        <StudyGoalsFields
+          metaDiaria={metaDiaria}
+          onMetaDiariaChange={(v) => form.setValue("metaDiaria", v, { shouldValidate: true })}
+          metaSemanal={metaSemanal}
+          onMetaSemanalChange={(v) => form.setValue("metaSemanal", v, { shouldValidate: true })}
+          metaMensal={metaMensal}
+          onMetaMensalChange={(v) => form.setValue("metaMensal", v, { shouldValidate: true })}
+          diasEstudo={diasEstudo}
+          onDiasEstudoChange={(v) => form.setValue("diasEstudo", v, { shouldValidate: true })}
+        />
+        {form.formState.errors.diasEstudo && (
+          <p className="text-sm text-destructive">{form.formState.errors.diasEstudo.message}</p>
+        )}
         <FormField
           control={form.control}
           name="descricao"

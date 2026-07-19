@@ -3,6 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -17,8 +18,11 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { editalSchema, type EditalFormValues } from "@/schemas/edital.schema";
+import { EDITAL_CATEGORIAS } from "@/constants/editalCategorias";
+import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 
 interface EditalFormProps {
@@ -34,6 +38,7 @@ export function EditalForm({
   submitting,
   submitLabel = "Salvar",
 }: EditalFormProps) {
+  const { isAdmin } = useAuth();
   const form = useForm<EditalFormValues>({
     resolver: zodResolver(editalSchema),
     defaultValues: {
@@ -41,6 +46,8 @@ export function EditalForm({
       orgao: "",
       cargo: "",
       banca: "",
+      categoria: "",
+      public: false,
       descricao: "",
       linkEdital: "",
       status: "ativo",
@@ -92,6 +99,30 @@ export function EditalForm({
             )}
           />
         </div>
+        <FormField
+          control={form.control}
+          name="categoria"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Carreira</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione a carreira" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {EDITAL_CATEGORIAS.map((categoria) => (
+                    <SelectItem key={categoria.value} value={categoria.value}>
+                      {categoria.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -155,6 +186,26 @@ export function EditalForm({
             </FormItem>
           )}
         />
+        {isAdmin && (
+          <FormField
+            control={form.control}
+            name="public"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <FormLabel>Visível para todos os usuários</FormLabel>
+                  <FormDescription>
+                    Editais públicos aparecem para qualquer usuário, que pode reaproveitá-los
+                    para criar planos, mas não pode editá-los.
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        )}
         <Button type="submit" className="w-full" disabled={submitting}>
           {submitting && <Loader2 className="size-4 animate-spin" />}
           {submitLabel}

@@ -41,7 +41,7 @@ export default function RegisterPage() {
   async function handleGoogleLogin() {
     setGoogleSubmitting(true);
     try {
-      await loginGoogle();
+      await loginGoogle(true);
       toast.success("Conta criada com sucesso");
       navigate("/dashboard", { replace: true });
     } catch {

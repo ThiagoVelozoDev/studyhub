@@ -17,6 +17,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { EditalSubjectForm } from "@/components/forms/EditalSubjectForm";
+import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/contexts/AuthContext";
+import { getEditalCategoriaLabel } from "@/constants/editalCategorias";
 import {
   useCreateEditalSubject,
   useDeleteEditalSubject,
@@ -29,9 +32,13 @@ import type { EditalSubject } from "@/types";
 import type { EditalSubjectFormValues } from "@/schemas/edital.schema";
 
 export default function EditalDetailPage() {
+  const { user } = useAuth();
   const { editalId } = useParams<{ editalId: string }>();
   const { data: edital, isLoading: loadingEdital } = useEdital(editalId);
-  const { data: subjects, isLoading: loadingSubjects } = useEditalSubjects(editalId);
+  const isOwner = edital?.userId === user?.uid;
+  const { data: subjects, isLoading: loadingSubjects } = useEditalSubjects(editalId, {
+    public: !isOwner,
+  });
 
   const createSubject = useCreateEditalSubject(editalId ?? "");
   const updateSubject = useUpdateEditalSubject(editalId ?? "");
@@ -50,6 +57,7 @@ export default function EditalDetailPage() {
       } else {
         await createSubject.mutateAsync({
           editalId,
+          public: edital?.public ?? false,
           nome: values.nome,
           cor: values.cor,
           icone: values.icone,
@@ -102,20 +110,28 @@ export default function EditalDetailPage() {
         <p className="text-sm text-muted-foreground">
           {edital.orgao} · {edital.cargo} · Banca {edital.banca}
         </p>
+        <div className="mt-2 flex items-center gap-2">
+          <Badge variant="outline">{getEditalCategoriaLabel(edital.categoria)}</Badge>
+          <Badge variant={isOwner ? "secondary" : "default"}>
+            {isOwner ? "Meu edital" : "Oficial"}
+          </Badge>
+        </div>
       </div>
 
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-medium">Disciplinas</h2>
-        <Button
-          size="sm"
-          onClick={() => {
-            setEditingSubject(null);
-            setSubjectDialogOpen(true);
-          }}
-        >
-          <Plus className="size-4" />
-          Nova disciplina
-        </Button>
+        {isOwner && (
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditingSubject(null);
+              setSubjectDialogOpen(true);
+            }}
+          >
+            <Plus className="size-4" />
+            Nova disciplina
+          </Button>
+        )}
       </div>
 
       {loadingSubjects && (
@@ -132,10 +148,12 @@ export default function EditalDetailPage() {
           title="Nenhuma disciplina cadastrada"
           description="Adicione disciplinas para depois organizar os tópicos do edital."
           action={
-            <Button onClick={() => setSubjectDialogOpen(true)}>
-              <Plus className="size-4" />
-              Adicionar disciplina
-            </Button>
+            isOwner ? (
+              <Button onClick={() => setSubjectDialogOpen(true)}>
+                <Plus className="size-4" />
+                Adicionar disciplina
+              </Button>
+            ) : undefined
           }
         />
       )}
@@ -146,6 +164,7 @@ export default function EditalDetailPage() {
             <EditalSubjectPanel
               key={subject.id}
               subject={subject}
+              isOwner={isOwner}
               onEdit={() => {
                 setEditingSubject(subject);
                 setSubjectDialogOpen(true);

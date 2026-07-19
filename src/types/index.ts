@@ -9,6 +9,8 @@ export interface Edital {
   orgao: string;
   cargo: string;
   banca: string;
+  categoria: string;
+  public: boolean;
   descricao?: string;
   dataPublicacao?: Timestamp;
   linkEdital?: string;
@@ -21,6 +23,7 @@ export interface EditalSubject {
   id: string;
   userId: string;
   editalId: string;
+  public: boolean;
   nome: string;
   cor: string;
   icone: string;
@@ -32,6 +35,7 @@ export interface EditalTopic {
   userId: string;
   editalId: string;
   disciplinaId: string;
+  public: boolean;
   nome: string;
   descricao?: string;
   ordem: number;
@@ -45,6 +49,7 @@ export interface Plan {
   nome: string;
   descricao?: string;
   dataProva?: Timestamp;
+  diasEstudo: string[];
   metaDiaria: number;
   metaSemanal: number;
   metaMensal: number;
@@ -102,13 +107,17 @@ export interface Goal {
   planoId?: string;
   periodo: GoalPeriod;
   metaMinutos: number;
+  diasEstudo?: string[];
   createdAt: Timestamp;
 }
+
+export type UserRole = "admin" | "user";
 
 export interface UserProfile {
   uid: string;
   nome: string;
   email: string;
   photoURL?: string;
+  role?: UserRole;
   createdAt: Timestamp;
 }

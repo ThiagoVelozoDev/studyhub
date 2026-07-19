@@ -94,6 +94,7 @@ export function ImportEditalDialog({ open, onOpenChange }: ImportEditalDialogPro
       orgao: result.data.edital?.orgao ?? "",
       cargo: result.data.edital?.cargo ?? "",
       banca: result.data.edital?.banca ?? "",
+      categoria: result.data.edital?.categoria ?? "",
       status: "ativo",
     });
     setDisciplinas(normalizeImportDisciplinas(result.data.disciplinas));
@@ -116,6 +117,8 @@ export function ImportEditalDialog({ open, onOpenChange }: ImportEditalDialogPro
           orgao: values.orgao,
           cargo: values.cargo,
           banca: values.banca,
+          categoria: values.categoria,
+          public: values.public,
           descricao: values.descricao,
           linkEdital: values.linkEdital,
           status: values.status,

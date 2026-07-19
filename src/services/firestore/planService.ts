@@ -14,7 +14,7 @@ import {
 import { db } from "../firebase/config";
 import { COLLECTIONS } from "../../constants/collections";
 import type { Plan, PlanSubject, PlanTopic } from "../../types";
-import { listEditalSubjects, listEditalTopics } from "./editalService";
+import { getEdital, listEditalSubjects, listEditalTopics } from "./editalService";
 
 type PlanInput = Omit<Plan, "id" | "userId" | "createdAt">;
 
@@ -44,7 +44,18 @@ export async function createPlanFromEdital(userId: string, input: PlanInput): Pr
     createdAt: serverTimestamp(),
   });
 
-  const editalSubjects = await listEditalSubjects(input.editalId, userId);
+  // O edital de origem pode pertencer a outro usuário (ex.: edital público
+  // do admin) — nesse caso as disciplinas/tópicos precisam ser buscados
+  // como o dono real do edital, filtrando por `public` em vez de `userId`
+  // (a query com o userId de quem está criando o plano sempre voltaria
+  // vazia, já que o documento pertence a outro usuário).
+  const sourceEdital = await getEdital(input.editalId);
+  const isForeignPublic = !!sourceEdital && sourceEdital.userId !== userId && sourceEdital.public;
+  const subjectsOwnerId = sourceEdital?.userId ?? userId;
+
+  const editalSubjects = await listEditalSubjects(input.editalId, subjectsOwnerId, {
+    public: isForeignPublic,
+  });
   const batch = writeBatch(db);
 
   for (const subject of editalSubjects) {
@@ -61,7 +72,7 @@ export async function createPlanFromEdital(userId: string, input: PlanInput): Pr
     };
     batch.set(planSubjectRef, planSubject);
 
-    const topics = await listEditalTopics(subject.id, userId);
+    const topics = await listEditalTopics(subject.id, subjectsOwnerId, { public: isForeignPublic });
     for (const topic of topics) {
       const planTopicRef = doc(collection(db, COLLECTIONS.PLAN_TOPICS));
       const planTopic: Omit<PlanTopic, "id"> = {

@@ -29,13 +29,17 @@ export function EditalSubjectPanel({
   subject,
   onEdit,
   onDelete,
+  isOwner = true,
 }: {
   subject: EditalSubject;
   onEdit: () => void;
   onDelete: () => void;
+  isOwner?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const { data: topics, isLoading } = useEditalTopics(expanded ? subject.id : undefined);
+  const { data: topics, isLoading } = useEditalTopics(expanded ? subject.id : undefined, {
+    public: !isOwner,
+  });
   const createTopic = useCreateEditalTopic(subject.id);
   const updateTopic = useUpdateEditalTopic(subject.id);
   const deleteTopic = useDeleteEditalTopic(subject.id);
@@ -53,6 +57,7 @@ export function EditalSubjectPanel({
         await createTopic.mutateAsync({
           editalId: subject.editalId,
           disciplinaId: subject.id,
+          public: subject.public,
           nome: values.nome,
           descricao: values.descricao,
           cargaHorariaSugerida: values.cargaHorariaSugerida,
@@ -88,30 +93,34 @@ export function EditalSubjectPanel({
       >
         <span className="size-3 shrink-0 rounded-full" style={{ backgroundColor: subject.cor }} />
         <span className="flex-1 font-medium">{subject.nome}</span>
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit();
-          }}
-          onKeyDown={(e) => e.stopPropagation()}
-          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-        >
-          <Pencil className="size-4" />
-        </span>
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          onKeyDown={(e) => e.stopPropagation()}
-          className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-        >
-          <Trash2 className="size-4" />
-        </span>
+        {isOwner && (
+          <>
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit();
+              }}
+              onKeyDown={(e) => e.stopPropagation()}
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <Pencil className="size-4" />
+            </span>
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              onKeyDown={(e) => e.stopPropagation()}
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 className="size-4" />
+            </span>
+          </>
+        )}
         <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", expanded && "rotate-180")} />
       </button>
 
@@ -136,41 +145,45 @@ export function EditalSubjectPanel({
                     </p>
                   )}
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-7"
-                    onClick={() => {
-                      setEditingTopic(topic);
-                      setTopicDialogOpen(true);
-                    }}
-                  >
-                    <Pencil className="size-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-7 text-destructive hover:text-destructive"
-                    onClick={() => setDeleteTarget(topic.id)}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
-                </div>
+                {isOwner && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7"
+                      onClick={() => {
+                        setEditingTopic(topic);
+                        setTopicDialogOpen(true);
+                      }}
+                    >
+                      <Pencil className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 text-destructive hover:text-destructive"
+                      onClick={() => setDeleteTarget(topic.id)}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            onClick={() => {
-              setEditingTopic(null);
-              setTopicDialogOpen(true);
-            }}
-          >
-            <Plus className="size-4" />
-            Novo tópico
-          </Button>
+          {isOwner && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => {
+                setEditingTopic(null);
+                setTopicDialogOpen(true);
+              }}
+            >
+              <Plus className="size-4" />
+              Novo tópico
+            </Button>
+          )}
         </div>
       )}
 

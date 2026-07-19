@@ -38,6 +38,7 @@ export default function PlansPage() {
         nome: values.nome,
         descricao: values.descricao,
         dataProva: values.dataProva ? new Date(values.dataProva).getTime() : undefined,
+        diasEstudo: values.diasEstudo,
         metaDiaria: values.metaDiaria,
         metaSemanal: values.metaSemanal,
         metaMensal: values.metaMensal,

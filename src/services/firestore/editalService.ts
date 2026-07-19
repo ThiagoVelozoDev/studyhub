@@ -34,6 +34,16 @@ export async function getEdital(editalId: string): Promise<Edital | null> {
   return snapshot.exists() ? ({ id: snapshot.id, ...snapshot.data() } as Edital) : null;
 }
 
+// Editais públicos são visíveis a todos os usuários (ver firestore.rules) —
+// só um admin pode marcar um edital como público.
+export async function listPublicEditals(): Promise<Edital[]> {
+  const q = query(collection(db, COLLECTIONS.EDITALS), where("public", "==", true));
+  const snapshot = await getDocs(q);
+  return snapshot.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as Edital)
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
+
 export async function createEdital(userId: string, input: EditalInput): Promise<string> {
   const ref = await addDoc(collection(db, COLLECTIONS.EDITALS), {
     ...input,
@@ -74,6 +84,7 @@ export async function createEditalWithContent(
     nextBatch().set(subjectRef, {
       userId,
       editalId: editalRef.id,
+      public: editalInput.public,
       nome: disciplina.nome,
       cor: PRESET_COLORS[i % PRESET_COLORS.length],
       icone: "book",
@@ -85,6 +96,7 @@ export async function createEditalWithContent(
         userId,
         editalId: editalRef.id,
         disciplinaId: subjectRef.id,
+        public: editalInput.public,
         ordem: j,
         ...topico,
       });
@@ -96,11 +108,40 @@ export async function createEditalWithContent(
   return editalRef.id;
 }
 
-export async function updateEdital(editalId: string, input: Partial<EditalInput>): Promise<void> {
+export async function updateEdital(
+  editalId: string,
+  userId: string,
+  input: Partial<EditalInput>
+): Promise<void> {
   await updateDoc(doc(db, COLLECTIONS.EDITALS, editalId), {
     ...input,
     updatedAt: serverTimestamp(),
   });
+
+  // Se `public` mudou, propaga para as disciplinas/tópicos já existentes,
+  // já que a regra de segurança deles depende do próprio campo denormalizado.
+  if (input.public !== undefined) {
+    const batch = writeBatch(db);
+    const subjects = await getDocs(
+      query(
+        collection(db, COLLECTIONS.EDITAL_SUBJECTS),
+        where("editalId", "==", editalId),
+        where("userId", "==", userId)
+      )
+    );
+    for (const subjectDoc of subjects.docs) {
+      batch.update(subjectDoc.ref, { public: input.public });
+      const topics = await getDocs(
+        query(
+          collection(db, COLLECTIONS.EDITAL_TOPICS),
+          where("disciplinaId", "==", subjectDoc.id),
+          where("userId", "==", userId)
+        )
+      );
+      topics.docs.forEach((t) => batch.update(t.ref, { public: input.public }));
+    }
+    await batch.commit();
+  }
 }
 
 export async function deleteEdital(editalId: string, userId: string): Promise<void> {
@@ -132,11 +173,15 @@ export async function deleteEdital(editalId: string, userId: string): Promise<vo
 // de segurança também aparece como filtro de igualdade na própria query —
 // caso contrário ele rejeita a leitura inteira com "Missing or insufficient
 // permissions", mesmo que os documentos retornados pertencessem ao usuário.
-export async function listEditalSubjects(editalId: string, userId: string): Promise<EditalSubject[]> {
+export async function listEditalSubjects(
+  editalId: string,
+  userId: string,
+  opts?: { public?: boolean }
+): Promise<EditalSubject[]> {
   const q = query(
     collection(db, COLLECTIONS.EDITAL_SUBJECTS),
     where("editalId", "==", editalId),
-    where("userId", "==", userId)
+    opts?.public ? where("public", "==", true) : where("userId", "==", userId)
   );
   const snapshot = await getDocs(q);
   return snapshot.docs
@@ -172,11 +217,15 @@ export async function deleteEditalSubject(subjectId: string, userId: string): Pr
   await batch.commit();
 }
 
-export async function listEditalTopics(subjectId: string, userId: string): Promise<EditalTopic[]> {
+export async function listEditalTopics(
+  subjectId: string,
+  userId: string,
+  opts?: { public?: boolean }
+): Promise<EditalTopic[]> {
   const q = query(
     collection(db, COLLECTIONS.EDITAL_TOPICS),
     where("disciplinaId", "==", subjectId),
-    where("userId", "==", userId)
+    opts?.public ? where("public", "==", true) : where("userId", "==", userId)
   );
   const snapshot = await getDocs(q);
   return snapshot.docs

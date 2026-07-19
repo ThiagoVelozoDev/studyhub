@@ -11,6 +11,15 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // get() em um caminho FIXO (o próprio uid de quem chama) — não varia por
+    // documento retornado, então é seguro mesmo em regras de list/query.
+    // Diferente do caso de ownsDoc() abaixo, que é sobre um get() cruzado
+    // que variaria por documento (isso sim quebra queries).
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+
     // Dono via userId denormalizado no próprio documento. Evitamos checar a
     // posse via get() em um documento pai (ex: editalSubjects -> editals):
     // o Firestore não consegue validar estaticamente uma *query* (coleção
@@ -26,27 +35,38 @@ service cloud.firestore {
       return isSignedIn() && request.resource.data.userId == request.auth.uid;
     }
 
-    // users/{uid}
+    // users/{uid}: dono pode editar o próprio perfil, mas não o próprio
+    // campo `role` (evita auto-promoção a admin). Um admin pode ler/alterar
+    // o role de qualquer usuário (necessário para o painel de gestão).
     match /users/{uid} {
-      allow read, write: if ownsUserId(uid);
+      allow read: if ownsUserId(uid) || isAdmin();
+      allow create: if ownsUserId(uid);
+      allow update: if (ownsUserId(uid) && request.resource.data.role == resource.data.role) || isAdmin();
     }
 
-    // editals: dono direto via userId
+    // editals: dono via userId, OU público (visível a todos). Só admin pode
+    // marcar/desmarcar `public`.
     match /editals/{editalId} {
-      allow read, update, delete: if ownsDoc();
-      allow create: if ownsNewDoc();
+      allow read: if ownsDoc() || resource.data.public == true;
+      allow create: if ownsNewDoc() && (request.resource.data.public == false || isAdmin());
+      allow update: if ownsDoc() && (request.resource.data.public == resource.data.public || isAdmin());
+      allow delete: if ownsDoc();
     }
 
-    // editalSubjects: userId denormalizado do edital pai
+    // editalSubjects: userId/public denormalizados do edital pai
     match /editalSubjects/{subjectId} {
-      allow read, update, delete: if ownsDoc();
-      allow create: if ownsNewDoc();
+      allow read: if ownsDoc() || resource.data.public == true;
+      allow create: if ownsNewDoc() && (request.resource.data.public == false || isAdmin());
+      allow update: if ownsDoc() && (request.resource.data.public == resource.data.public || isAdmin());
+      allow delete: if ownsDoc();
     }
 
-    // editalTopics: userId denormalizado do edital pai
+    // editalTopics: userId/public denormalizados do edital pai
     match /editalTopics/{topicId} {
-      allow read, update, delete: if ownsDoc();
-      allow create: if ownsNewDoc();
+      allow read: if ownsDoc() || resource.data.public == true;
+      allow create: if ownsNewDoc() && (request.resource.data.public == false || isAdmin());
+      allow update: if ownsDoc() && (request.resource.data.public == resource.data.public || isAdmin());
+      allow delete: if ownsDoc();
     }
 
     // plans: dono direto via userId

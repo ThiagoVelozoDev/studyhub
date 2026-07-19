@@ -4,14 +4,17 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { GraduationCap, Loader2 } from "lucide-react";
+import { GraduationCap, Loader2, Mail, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
 import { GoogleIcon } from "@/components/common/GoogleIcon";
 import { loginSchema, type LoginFormValues } from "@/schemas/auth.schema";
 import { useAuth } from "@/contexts/AuthContext";
+import { LoginBrandPanel } from "./LoginBrandPanel";
+import { ForgotPasswordDialog } from "./ForgotPasswordDialog";
 
 export default function LoginPage() {
   const { login, loginGoogle } = useAuth();
@@ -19,6 +22,8 @@ export default function LoginPage() {
   const location = useLocation();
   const [submitting, setSubmitting] = useState(false);
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
 
   const {
     register,
@@ -29,7 +34,7 @@ export default function LoginPage() {
   async function onSubmit(values: LoginFormValues) {
     setSubmitting(true);
     try {
-      await login(values.email, values.password);
+      await login(values.email, values.password, rememberMe);
       toast.success("Login realizado com sucesso");
       const from = (location.state as { from?: string })?.from ?? "/dashboard";
       navigate(from, { replace: true });
@@ -43,7 +48,7 @@ export default function LoginPage() {
   async function handleGoogleLogin() {
     setGoogleSubmitting(true);
     try {
-      await loginGoogle();
+      await loginGoogle(rememberMe);
       toast.success("Login realizado com sucesso");
       const from = (location.state as { from?: string })?.from ?? "/dashboard";
       navigate(from, { replace: true });
@@ -55,74 +60,115 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-background p-4">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, ease: "easeOut" }}
-        className="w-full max-w-md"
-      >
-        <Card className="border-border/60">
-          <CardHeader className="space-y-2 text-center">
+    <div className="grid min-h-svh bg-background lg:grid-cols-2">
+      <LoginBrandPanel />
+
+      <div className="flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: "easeOut" }}
+          className="w-full max-w-sm space-y-6"
+        >
+          <div className="space-y-2 text-center">
             <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <GraduationCap className="size-6" />
             </div>
-            <CardTitle className="text-2xl">Entrar no StudyHub</CardTitle>
-            <CardDescription>Gerencie seus estudos para concursos</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">E-mail</Label>
-                <Input id="email" type="email" placeholder="voce@email.com" {...register("email")} />
-                {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
-                <Input id="password" type="password" placeholder="••••••••" {...register("password")} />
-                {errors.password && (
-                  <p className="text-sm text-destructive">{errors.password.message}</p>
-                )}
-              </div>
-              <Button type="submit" className="w-full" disabled={submitting}>
-                {submitting && <Loader2 className="size-4 animate-spin" />}
-                Entrar
-              </Button>
-            </form>
+            <h1 className="text-2xl font-bold">Entrar na sua conta</h1>
+            <p className="text-sm text-muted-foreground">
+              Faça login para continuar sua jornada
+            </p>
+          </div>
 
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border/60" />
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">E-mail</Label>
+              <div className="relative">
+                <Mail className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="seu@email.com"
+                  className="pl-9"
+                  {...register("email")}
+                />
               </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">Ou continue com</span>
+              {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Senha</Label>
+              <div className="relative">
+                <Lock className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  className="pl-9"
+                  {...register("password")}
+                />
               </div>
+              {errors.password && (
+                <p className="text-sm text-destructive">{errors.password.message}</p>
+              )}
             </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={handleGoogleLogin}
-              disabled={googleSubmitting}
-            >
-              {googleSubmitting ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <GoogleIcon className="size-4" />
-              )}
-              Entrar com Google
-            </Button>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="remember-me"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked === true)}
+                />
+                <Label htmlFor="remember-me" className="text-sm font-normal text-muted-foreground">
+                  Lembrar de mim
+                </Label>
+              </div>
+              <button
+                type="button"
+                className="text-sm font-medium text-primary hover:underline"
+                onClick={() => setForgotPasswordOpen(true)}
+              >
+                Esqueceu a senha?
+              </button>
+            </div>
 
-            <p className="mt-6 text-center text-sm text-muted-foreground">
-              Não tem uma conta?{" "}
-              <Link to="/register" className="font-medium text-primary hover:underline">
-                Criar conta
-              </Link>
-            </p>
-          </CardContent>
-        </Card>
-      </motion.div>
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting && <Loader2 className="size-4 animate-spin" />}
+              Entrar
+            </Button>
+          </form>
+
+          <div className="flex items-center gap-3">
+            <Separator className="flex-1" />
+            <span className="text-xs text-muted-foreground uppercase">ou continue com</span>
+            <Separator className="flex-1" />
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={handleGoogleLogin}
+            disabled={googleSubmitting}
+          >
+            {googleSubmitting ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <GoogleIcon className="size-4" />
+            )}
+            Entrar com Google
+          </Button>
+
+          <p className="text-center text-sm text-muted-foreground">
+            Não tem uma conta?{" "}
+            <Link to="/register" className="font-medium text-primary hover:underline">
+              Criar conta
+            </Link>
+          </p>
+        </motion.div>
+      </div>
+
+      <ForgotPasswordDialog open={forgotPasswordOpen} onOpenChange={setForgotPasswordOpen} />
     </div>
   );
 }
