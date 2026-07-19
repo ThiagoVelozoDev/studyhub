@@ -1,0 +1,307 @@
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
+import { Play, Pause, Square, Timer as TimerIcon, ClipboardList } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { EmptyState } from "@/components/common/EmptyState";
+import { usePlans, usePlanSubjects, usePlanTopics } from "@/hooks/usePlans";
+import { useCreateStudySession } from "@/hooks/useStudySessions";
+import { useTimer } from "@/hooks/useTimer";
+import { formatDuration } from "@/utils/datetime";
+
+export default function StudyPage() {
+  const [searchParams] = useSearchParams();
+  const { data: plans, isLoading: loadingPlans } = usePlans();
+
+  const [planId, setPlanId] = useState(searchParams.get("planId") ?? "");
+  const [disciplinaId, setDisciplinaId] = useState(searchParams.get("disciplinaId") ?? "");
+  const [topicoId, setTopicoId] = useState(searchParams.get("topicoId") ?? "");
+
+  const { data: subjects } = usePlanSubjects(planId || undefined);
+  const { data: topics } = usePlanTopics(planId || undefined, disciplinaId || undefined);
+
+  const timer = useTimer();
+  const createSession = useCreateStudySession();
+
+  const [finishDialogOpen, setFinishDialogOpen] = useState(false);
+  const [pendingStop, setPendingStop] = useState<ReturnType<typeof timer.stop> | null>(null);
+  const [questoesCertas, setQuestoesCertas] = useState("");
+  const [questoesErradas, setQuestoesErradas] = useState("");
+  const [observacoes, setObservacoes] = useState("");
+
+  useEffect(() => {
+    if (timer.activeTimer) {
+      setPlanId(timer.activeTimer.planoId);
+      setDisciplinaId(timer.activeTimer.disciplinaId);
+      setTopicoId(timer.activeTimer.topicoId);
+    }
+  }, [timer.activeTimer]);
+
+  const selectedPlan = useMemo(() => plans?.find((p) => p.id === planId), [plans, planId]);
+  const selectedSubject = useMemo(
+    () => subjects?.find((s) => s.id === disciplinaId),
+    [subjects, disciplinaId]
+  );
+  const selectedTopic = useMemo(() => topics?.find((t) => t.id === topicoId), [topics, topicoId]);
+
+  function handleStart() {
+    if (!planId || !disciplinaId || !topicoId) {
+      toast.error("Selecione plano, disciplina e tópico antes de iniciar");
+      return;
+    }
+    timer.start({ planoId: planId, disciplinaId, topicoId });
+  }
+
+  function handleStop() {
+    const result = timer.stop();
+    setPendingStop(result);
+    setFinishDialogOpen(true);
+  }
+
+  async function handleConfirmFinish() {
+    if (!pendingStop) return;
+    try {
+      await createSession.mutateAsync({
+        planoId: pendingStop.planoId,
+        disciplinaId: pendingStop.disciplinaId,
+        topicoId: pendingStop.topicoId,
+        inicio: pendingStop.startedAt,
+        fim: pendingStop.endedAt,
+        duracao: pendingStop.durationMs,
+        questoesCertas: questoesCertas ? Number(questoesCertas) : undefined,
+        questoesErradas: questoesErradas ? Number(questoesErradas) : undefined,
+        observacoes: observacoes || undefined,
+      });
+      toast.success("Sessão de estudo registrada");
+      setFinishDialogOpen(false);
+      setPendingStop(null);
+      setQuestoesCertas("");
+      setQuestoesErradas("");
+      setObservacoes("");
+    } catch {
+      toast.error("Não foi possível salvar a sessão de estudo");
+    }
+  }
+
+  const isRunning = timer.isRunning;
+  const isPaused = timer.isPaused;
+  const totalQuestoes = (Number(questoesCertas) || 0) + (Number(questoesErradas) || 0);
+
+  if (!loadingPlans && plans?.length === 0) {
+    return (
+      <EmptyState
+        icon={ClipboardList}
+        title="Crie um plano para começar a estudar"
+        description="Você precisa de um plano de estudos com disciplinas e tópicos antes de iniciar o cronômetro."
+      />
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Cronômetro de estudos</h1>
+        <p className="text-sm text-muted-foreground">Plano → Disciplina → Tópico → Iniciar</p>
+      </div>
+
+      <Card>
+        <CardContent className="space-y-4 pt-6">
+          <div className="space-y-2">
+            <Label>Plano</Label>
+            <Select
+              value={planId}
+              onValueChange={(value) => {
+                setPlanId(value);
+                setDisciplinaId("");
+                setTopicoId("");
+              }}
+              disabled={isRunning || isPaused}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecione um plano" />
+              </SelectTrigger>
+              <SelectContent>
+                {plans?.map((plan) => (
+                  <SelectItem key={plan.id} value={plan.id}>
+                    {plan.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Disciplina</Label>
+            <Select
+              value={disciplinaId}
+              onValueChange={(value) => {
+                setDisciplinaId(value);
+                setTopicoId("");
+              }}
+              disabled={isRunning || isPaused || !planId}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecione uma disciplina" />
+              </SelectTrigger>
+              <SelectContent>
+                {subjects
+                  ?.filter((s) => !s.oculta)
+                  .map((subject) => (
+                    <SelectItem key={subject.id} value={subject.id}>
+                      {subject.nome}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Tópico</Label>
+            <Select
+              value={topicoId}
+              onValueChange={setTopicoId}
+              disabled={isRunning || isPaused || !disciplinaId}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecione um tópico" />
+              </SelectTrigger>
+              <SelectContent>
+                {topics
+                  ?.filter((t) => !t.oculta)
+                  .map((topic) => (
+                    <SelectItem key={topic.id} value={topic.id}>
+                      {topic.nome}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <CardContent className="flex flex-col items-center gap-6 py-10">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={isRunning ? "running" : isPaused ? "paused" : "idle"}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="flex flex-col items-center gap-2"
+            >
+              <div
+                className={
+                  "flex size-20 items-center justify-center rounded-full " +
+                  (isPaused ? "bg-muted-foreground/10 text-muted-foreground" : "bg-primary/10 text-primary")
+                }
+              >
+                <TimerIcon className="size-9" />
+              </div>
+              <p className="font-mono text-5xl font-semibold tabular-nums">
+                {formatDuration(timer.elapsedMs)}
+              </p>
+              {(isRunning || isPaused) && (
+                <p className="text-sm text-muted-foreground">
+                  {selectedPlan?.nome} · {selectedSubject?.nome} · {selectedTopic?.nome}
+                  {isPaused && " · Pausado"}
+                </p>
+              )}
+            </motion.div>
+          </AnimatePresence>
+
+          <div className="flex items-center gap-3">
+            {!isRunning && !isPaused && (
+              <Button size="lg" onClick={handleStart} disabled={!planId || !disciplinaId || !topicoId}>
+                <Play className="size-5" />
+                Iniciar cronômetro
+              </Button>
+            )}
+            {isRunning && (
+              <Button size="lg" variant="outline" onClick={timer.pause}>
+                <Pause className="size-5" />
+                Pausar
+              </Button>
+            )}
+            {isPaused && (
+              <Button size="lg" onClick={timer.resume}>
+                <Play className="size-5" />
+                Continuar
+              </Button>
+            )}
+            {(isRunning || isPaused) && (
+              <Button size="lg" variant="destructive" onClick={handleStop}>
+                <Square className="size-5" />
+                Finalizar sessão
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={finishDialogOpen} onOpenChange={setFinishDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Finalizar sessão de estudo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {pendingStop && (
+              <p className="text-sm text-muted-foreground">
+                Tempo estudado: <strong>{formatDuration(pendingStop.durationMs)}</strong>
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Questões certas</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={questoesCertas}
+                  onChange={(e) => setQuestoesCertas(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Questões erradas</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={questoesErradas}
+                  onChange={(e) => setQuestoesErradas(e.target.value)}
+                />
+              </div>
+            </div>
+            {totalQuestoes > 0 && (
+              <p className="text-sm text-muted-foreground">
+                Total resolvido: <strong>{totalQuestoes}</strong>
+              </p>
+            )}
+            <div className="space-y-2">
+              <Label>Observações</Label>
+              <Textarea
+                rows={3}
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                placeholder="O que foi estudado, dificuldades, etc."
+              />
+            </div>
+            <Button className="w-full" onClick={handleConfirmFinish} disabled={createSession.isPending}>
+              Salvar sessão
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

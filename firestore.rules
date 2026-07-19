@@ -1,0 +1,82 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function ownsUserId(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Dono via userId denormalizado no próprio documento. Evitamos checar a
+    // posse via get() em um documento pai (ex: editalSubjects -> editals):
+    // o Firestore não consegue validar estaticamente uma *query* (coleção
+    // inteira) quando a regra depende de um get() cruzado, e rejeita a query
+    // inteira com "Missing or insufficient permissions" mesmo quando os
+    // documentos retornados pertenceriam ao usuário. Com userId direto no
+    // documento, a regra é resolvida por documento sem lookups extras.
+    function ownsDoc() {
+      return isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    function ownsNewDoc() {
+      return isSignedIn() && request.resource.data.userId == request.auth.uid;
+    }
+
+    // users/{uid}
+    match /users/{uid} {
+      allow read, write: if ownsUserId(uid);
+    }
+
+    // editals: dono direto via userId
+    match /editals/{editalId} {
+      allow read, update, delete: if ownsDoc();
+      allow create: if ownsNewDoc();
+    }
+
+    // editalSubjects: userId denormalizado do edital pai
+    match /editalSubjects/{subjectId} {
+      allow read, update, delete: if ownsDoc();
+      allow create: if ownsNewDoc();
+    }
+
+    // editalTopics: userId denormalizado do edital pai
+    match /editalTopics/{topicId} {
+      allow read, update, delete: if ownsDoc();
+      allow create: if ownsNewDoc();
+    }
+
+    // plans: dono direto via userId
+    match /plans/{planId} {
+      allow read, update, delete: if ownsDoc();
+      allow create: if ownsNewDoc();
+    }
+
+    // planSubjects: userId denormalizado do plano pai
+    match /planSubjects/{subjectId} {
+      allow read, update, delete: if ownsDoc();
+      allow create: if ownsNewDoc();
+    }
+
+    // planTopics: userId denormalizado do plano pai
+    match /planTopics/{topicId} {
+      allow read, update, delete: if ownsDoc();
+      allow create: if ownsNewDoc();
+    }
+
+    // studySessions: dono direto via userId
+    match /studySessions/{sessionId} {
+      allow read, update, delete: if ownsDoc();
+      allow create: if ownsNewDoc();
+    }
+
+    // goals: dono direto via userId
+    match /goals/{goalId} {
+      allow read, update, delete: if ownsDoc();
+      allow create: if ownsNewDoc();
+    }
+  }
+}
