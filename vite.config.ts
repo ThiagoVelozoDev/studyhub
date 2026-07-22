@@ -16,8 +16,8 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
       manifest: {
-        name: 'StudyHub - Gerenciamento de Estudos',
-        short_name: 'StudyHub',
+        name: 'Repositório Estudos',
+        short_name: 'Repositório Estudos',
         description: 'Plataforma de gerenciamento de estudos para concursos',
         theme_color: '#0f172a',
         background_color: '#0f172a',

@@ -1,4 +1,4 @@
-import { GraduationCap, ShieldCheck, Target, BarChart3, Clock } from "lucide-react";
+import { BrainCircuit, ShieldCheck, Target, BarChart3, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Sparkline } from "@/components/dashboard/Sparkline";
 import { NAV_ITEMS } from "@/constants/navigation";
@@ -41,9 +41,12 @@ export function LoginBrandPanel() {
       <div className="relative z-10 space-y-8">
         <div className="flex items-center gap-2">
           <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#5B5FFB] to-[#7B61FF] text-white shadow-lg shadow-[#5B5FFB]/30">
-            <GraduationCap className="size-5" />
+            <BrainCircuit className="size-5" />
           </div>
-          <span className="text-lg font-semibold text-white">StudyHub</span>
+          <div className="flex flex-col leading-tight">
+            <span className="text-lg font-semibold text-white">Repositório Estudos</span>
+            <span className="text-xs text-slate-400">O registro da sua trajetória até a aprovação</span>
+          </div>
         </div>
 
         <div className="space-y-3">

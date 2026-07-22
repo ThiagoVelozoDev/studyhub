@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { GraduationCap, Loader2, Mail, Lock } from "lucide-react";
+import { BrainCircuit, Loader2, Mail, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -72,7 +72,7 @@ export default function LoginPage() {
         >
           <div className="space-y-2 text-center">
             <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <GraduationCap className="size-6" />
+              <BrainCircuit className="size-6" />
             </div>
             <h1 className="text-2xl font-bold">Entrar na sua conta</h1>
             <p className="text-sm text-muted-foreground">

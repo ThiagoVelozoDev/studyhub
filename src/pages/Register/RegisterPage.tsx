@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { GraduationCap, Loader2 } from "lucide-react";
+import { BrainCircuit, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,7 +62,7 @@ export default function RegisterPage() {
         <Card className="border-border/60">
           <CardHeader className="space-y-2 text-center">
             <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <GraduationCap className="size-6" />
+              <BrainCircuit className="size-6" />
             </div>
             <CardTitle className="text-2xl">Criar conta</CardTitle>
             <CardDescription>Comece a organizar seus estudos hoje</CardDescription>
