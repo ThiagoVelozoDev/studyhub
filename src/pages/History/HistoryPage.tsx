@@ -1,6 +1,15 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Download, FileSpreadsheet, History as HistoryIcon, Trash2 } from "lucide-react";
+import {
+  ClipboardList,
+  Download,
+  FileSpreadsheet,
+  History as HistoryIcon,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -22,6 +31,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/common/EmptyState";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,12 +42,45 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { usePlans, usePlanSubjects, usePlanTopics } from "@/hooks/usePlans";
-import { useDeleteStudySession, useStudySessions } from "@/hooks/useStudySessions";
+import { useAllPlanSubjects, useAllPlanTopics, usePlans, usePlanSubjects, usePlanTopics } from "@/hooks/usePlans";
+import {
+  useCreateStudySession,
+  useDeleteStudySession,
+  useStudySessions,
+  useUpdateStudySession,
+} from "@/hooks/useStudySessions";
+import { StudySessionForm } from "@/components/forms/StudySessionForm";
+import type { StudySessionFormValues } from "@/schemas/studySession.schema";
+import { getSessionTypeLabel } from "@/constants/sessionTypes";
 import { formatDuration } from "@/utils/datetime";
 import { exportHistoryToExcel, exportHistoryToPdf, type HistoryExportRow } from "@/utils/export";
+import type { StudySession } from "@/types";
 
 const ALL = "all";
+
+function toDateInputValue(ts: number): string {
+  const d = new Date(ts);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function sessionToFormDefaults(session: StudySession): Partial<StudySessionFormValues> {
+  const totalMinutes = Math.round(session.duracao / 60000);
+  return {
+    planoId: session.planoId,
+    disciplinaId: session.disciplinaId,
+    topicoId: session.topicoId,
+    data: toDateInputValue(session.inicio),
+    horas: Math.floor(totalMinutes / 60),
+    minutos: totalMinutes % 60,
+    questoesCertas: session.questoesCertas,
+    questoesErradas: session.questoesErradas,
+    questoesBrancas: session.questoesBrancas,
+    observacoes: session.observacoes ?? "",
+  };
+}
 
 export default function HistoryPage() {
   const { data: plans } = usePlans();
@@ -47,11 +90,18 @@ export default function HistoryPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingSession, setEditingSession] = useState<StudySession | null>(null);
 
   const effectivePlanId = planId === ALL ? undefined : planId;
   const { data: subjects } = usePlanSubjects(effectivePlanId);
   const { data: topics } = usePlanTopics(effectivePlanId, disciplinaId === ALL ? undefined : disciplinaId);
-  const { data: allTopics } = usePlanTopics(effectivePlanId);
+  // Sem filtro de plano, ao contrário de `subjects`/`topics` acima (que só
+  // alimentam as opções dos Selects de filtro) — os mapas de nome precisam
+  // resolver disciplina/tópico de sessões de qualquer plano do usuário,
+  // já que a visão padrão (Plano = "Todos") mistura sessões de vários planos.
+  const { data: allSubjects } = useAllPlanSubjects();
+  const { data: allTopics } = useAllPlanTopics();
 
   const { data: sessions, isLoading } = useStudySessions({
     planoId: effectivePlanId,
@@ -59,12 +109,11 @@ export default function HistoryPage() {
     topicoId: topicoId === ALL ? undefined : topicoId,
   });
   const deleteSession = useDeleteStudySession();
+  const createSession = useCreateStudySession();
+  const updateSession = useUpdateStudySession();
 
-  const subjectNameMap = useMemo(() => new Map(subjects?.map((s) => [s.id, s.nome])), [subjects]);
-  const topicNameMap = useMemo(
-    () => new Map(allTopics?.map((t) => [t.id, t.nome])),
-    [allTopics]
-  );
+  const subjectNameMap = useMemo(() => new Map(allSubjects?.map((s) => [s.id, s.nome])), [allSubjects]);
+  const topicNameMap = useMemo(() => new Map(allTopics?.map((t) => [t.id, t.nome])), [allTopics]);
   const planNameMap = useMemo(() => new Map(plans?.map((p) => [p.id, p.nome])), [plans]);
 
   const filteredSessions = useMemo(() => {
@@ -83,11 +132,51 @@ export default function HistoryPage() {
       data: new Date(s.inicio).toLocaleDateString("pt-BR"),
       plano: planNameMap.get(s.planoId) ?? "-",
       disciplina: subjectNameMap.get(s.disciplinaId) ?? "-",
-      topico: topicNameMap.get(s.topicoId) ?? "-",
+      topico: s.topicoId ? (topicNameMap.get(s.topicoId) ?? "-") : "-",
       horaInicio: new Date(s.inicio).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
       horaFim: new Date(s.fim).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
       tempo: formatDuration(s.duracao),
     }));
+  }
+
+  function openCreateDialog() {
+    setEditingSession(null);
+    setFormOpen(true);
+  }
+
+  function openEditDialog(session: StudySession) {
+    setEditingSession(session);
+    setFormOpen(true);
+  }
+
+  async function handleFormSubmit(values: StudySessionFormValues) {
+    const duracao = (values.horas * 60 + values.minutos) * 60_000;
+    const inicio = new Date(`${values.data}T12:00:00`).getTime();
+    const input = {
+      planoId: values.planoId,
+      disciplinaId: values.disciplinaId,
+      topicoId: values.topicoId,
+      inicio,
+      fim: inicio + duracao,
+      duracao,
+      questoesCertas: values.questoesCertas,
+      questoesErradas: values.questoesErradas,
+      questoesBrancas: values.questoesBrancas,
+      observacoes: values.observacoes || undefined,
+    };
+    try {
+      if (editingSession) {
+        await updateSession.mutateAsync({ sessionId: editingSession.id, input });
+        toast.success("Registro atualizado");
+      } else {
+        await createSession.mutateAsync(input);
+        toast.success("Registro adicionado");
+      }
+      setFormOpen(false);
+      setEditingSession(null);
+    } catch {
+      toast.error("Não foi possível salvar o registro");
+    }
   }
 
   async function confirmDelete() {
@@ -110,6 +199,16 @@ export default function HistoryPage() {
           <p className="text-sm text-muted-foreground">Todas as suas sessões de estudo</p>
         </div>
         <div className="flex gap-2">
+          <Button size="sm" onClick={openCreateDialog}>
+            <Plus className="size-4" />
+            Adicionar registro
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/history/totais">
+              <ClipboardList className="size-4" />
+              Lançar totais por disciplina
+            </Link>
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -222,6 +321,7 @@ export default function HistoryPage() {
                   <TableHead>Plano</TableHead>
                   <TableHead>Disciplina</TableHead>
                   <TableHead>Tópico</TableHead>
+                  <TableHead>Tipo</TableHead>
                   <TableHead>Início</TableHead>
                   <TableHead>Fim</TableHead>
                   <TableHead>Tempo</TableHead>
@@ -234,7 +334,10 @@ export default function HistoryPage() {
                     <TableCell>{new Date(session.inicio).toLocaleDateString("pt-BR")}</TableCell>
                     <TableCell>{planNameMap.get(session.planoId) ?? "-"}</TableCell>
                     <TableCell>{subjectNameMap.get(session.disciplinaId) ?? "-"}</TableCell>
-                    <TableCell>{topicNameMap.get(session.topicoId) ?? "-"}</TableCell>
+                    <TableCell>
+                      {session.topicoId ? (topicNameMap.get(session.topicoId) ?? "-") : "-"}
+                    </TableCell>
+                    <TableCell>{getSessionTypeLabel(session.tipo)}</TableCell>
                     <TableCell>
                       {new Date(session.inicio).toLocaleTimeString("pt-BR", {
                         hour: "2-digit",
@@ -249,14 +352,24 @@ export default function HistoryPage() {
                     </TableCell>
                     <TableCell className="font-mono">{formatDuration(session.duracao)}</TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-7 text-destructive hover:text-destructive"
-                        onClick={() => setDeleteTarget(session.id)}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7"
+                          onClick={() => openEditDialog(session)}
+                        >
+                          <Pencil className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteTarget(session.id)}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -265,6 +378,26 @@ export default function HistoryPage() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog
+        open={formOpen}
+        onOpenChange={(open) => {
+          setFormOpen(open);
+          if (!open) setEditingSession(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingSession ? "Editar registro" : "Adicionar registro"}</DialogTitle>
+          </DialogHeader>
+          <StudySessionForm
+            defaultValues={editingSession ? sessionToFormDefaults(editingSession) : undefined}
+            onSubmit={handleFormSubmit}
+            submitting={createSession.isPending || updateSession.isPending}
+            submitLabel={editingSession ? "Salvar alterações" : "Adicionar"}
+          />
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>

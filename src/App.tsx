@@ -14,6 +14,7 @@ const PlanDetailPage = lazy(() => import("@/pages/Plans/PlanDetailPage"));
 const EditalsPage = lazy(() => import("@/pages/Editals/EditalsPage"));
 const EditalDetailPage = lazy(() => import("@/pages/Editals/EditalDetailPage"));
 const HistoryPage = lazy(() => import("@/pages/History/HistoryPage"));
+const BulkTotalsPage = lazy(() => import("@/pages/History/BulkTotalsPage"));
 const SettingsPage = lazy(() => import("@/pages/Settings/SettingsPage"));
 const AdminUsersPage = lazy(() => import("@/pages/Admin/UsersPage"));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
@@ -43,6 +44,7 @@ function App() {
             <Route path="/editals" element={<EditalsPage />} />
             <Route path="/editals/:editalId" element={<EditalDetailPage />} />
             <Route path="/history" element={<HistoryPage />} />
+            <Route path="/history/totais" element={<BulkTotalsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route element={<AdminRoute />}>
               <Route path="/admin/usuarios" element={<AdminUsersPage />} />

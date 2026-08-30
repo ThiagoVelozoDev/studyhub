@@ -85,17 +85,21 @@ export interface PlanTopic {
   oculta: boolean;
 }
 
+export type SessionType = "aula" | "questoes" | "simulado";
+
 export interface StudySession {
   id: string;
   userId: string;
   planoId: string;
   disciplinaId: string;
-  topicoId: string;
+  topicoId?: string;
+  tipo?: SessionType;
   inicio: Timestamp;
   fim: Timestamp;
   duracao: number;
   questoesCertas?: number;
   questoesErradas?: number;
+  questoesBrancas?: number;
   observacoes?: string;
 }
 

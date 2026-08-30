@@ -135,7 +135,8 @@ export function OverviewStep({ activePlanId }: { activePlanId: string | undefine
                   </span>
                   <div className="min-w-0 flex-1 pt-0.5">
                     <p className="truncate text-sm font-medium">
-                      {topicNameById.get(session.topicoId) ?? "Sessão de estudo"}
+                      {(session.topicoId ? topicNameById.get(session.topicoId) : undefined) ??
+                        "Sessão de estudo"}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {formatDistanceToNow(session.inicio, { addSuffix: true, locale: ptBR })} ·{" "}

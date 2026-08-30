@@ -153,6 +153,27 @@ export async function listPlanTopics(
     .sort((a, b) => a.ordem - b.ordem);
 }
 
+// Sem filtro de planoId, ao contrário de listPlanSubjects/listPlanTopics —
+// usado quando o consumidor precisa resolver nomes de disciplina/tópico de
+// sessões que podem pertencer a planos diferentes (ex.: HistoryPage sem
+// filtro de plano selecionado).
+export async function listAllPlanSubjectsForUser(userId: string): Promise<PlanSubject[]> {
+  const q = query(collection(db, COLLECTIONS.PLAN_SUBJECTS), where("userId", "==", userId));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as PlanSubject);
+}
+
+export async function listAllPlanTopicsForUser(userId: string): Promise<PlanTopic[]> {
+  const q = query(collection(db, COLLECTIONS.PLAN_TOPICS), where("userId", "==", userId));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as PlanTopic);
+}
+
+export async function createPlanTopic(input: Omit<PlanTopic, "id">): Promise<string> {
+  const ref = await addDoc(collection(db, COLLECTIONS.PLAN_TOPICS), input);
+  return ref.id;
+}
+
 export async function updatePlanTopic(
   topicId: string,
   input: Partial<Omit<PlanTopic, "id" | "planoId" | "disciplinaId">>
@@ -174,10 +195,13 @@ export async function updatePlanSubject(
 export async function incrementPlanTopicStudyTime(
   topicId: string,
   currentTempoEstudado: number,
-  additionalMs: number
+  additionalMs: number,
+  currentQuestoesResolvidas: number,
+  additionalQuestoes: number
 ): Promise<void> {
   await updateDoc(doc(db, COLLECTIONS.PLAN_TOPICS, topicId), {
     tempoEstudado: currentTempoEstudado + additionalMs,
+    questoesResolvidas: currentQuestoesResolvidas + additionalQuestoes,
     ultimaRevisao: Date.now(),
   });
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { SessionType } from "@/types";
 
 const STORAGE_KEY = "studyhub:activeTimer";
 
@@ -6,6 +7,7 @@ export interface ActiveTimerState {
   planoId: string;
   disciplinaId: string;
   topicoId: string;
+  tipo: SessionType;
   /** Início real da sessão (primeira vez que foi iniciada), usado como `inicio`. */
   originalStartedAt: number;
   /** Início do segmento em execução; `null` quando pausado. */
@@ -19,13 +21,14 @@ interface UseTimerResult {
   isPaused: boolean;
   elapsedMs: number;
   activeTimer: ActiveTimerState | null;
-  start: (context: Pick<ActiveTimerState, "planoId" | "disciplinaId" | "topicoId">) => void;
+  start: (context: Pick<ActiveTimerState, "planoId" | "disciplinaId" | "topicoId" | "tipo">) => void;
   pause: () => void;
   resume: () => void;
   stop: () => {
     planoId: string;
     disciplinaId: string;
     topicoId: string;
+    tipo: SessionType;
     startedAt: number;
     endedAt: number;
     durationMs: number;
@@ -68,7 +71,7 @@ export function useTimer(): UseTimerResult {
     };
   }, [isRunning]);
 
-  const start = useCallback((context: Pick<ActiveTimerState, "planoId" | "disciplinaId" | "topicoId">) => {
+  const start = useCallback((context: Pick<ActiveTimerState, "planoId" | "disciplinaId" | "topicoId" | "tipo">) => {
     const now = Date.now();
     const timer: ActiveTimerState = {
       ...context,
@@ -116,6 +119,7 @@ export function useTimer(): UseTimerResult {
       planoId: timer.planoId,
       disciplinaId: timer.disciplinaId,
       topicoId: timer.topicoId,
+      tipo: timer.tipo,
       startedAt: timer.originalStartedAt,
       endedAt,
       durationMs,

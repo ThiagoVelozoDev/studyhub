@@ -7,6 +7,7 @@ import {
   getDocs,
   query,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { COLLECTIONS } from "../../constants/collections";
@@ -41,6 +42,18 @@ export async function listStudySessions(
     .sort((a, b) => b.inicio - a.inicio);
 
   return options?.max ? sessions.slice(0, options.max) : sessions;
+}
+
+export async function createStudySessionsBatch(
+  userId: string,
+  inputs: SessionInput[]
+): Promise<void> {
+  const batch = writeBatch(db);
+  for (const input of inputs) {
+    const ref = doc(collection(db, COLLECTIONS.STUDY_SESSIONS));
+    batch.set(ref, { ...input, userId });
+  }
+  await batch.commit();
 }
 
 export async function updateStudySession(

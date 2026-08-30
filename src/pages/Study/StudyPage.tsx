@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Pause, Square, Timer as TimerIcon, ClipboardList } from "lucide-react";
+import { Play, Pause, Square, Timer as TimerIcon, ClipboardList, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -17,9 +17,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/common/EmptyState";
-import { usePlans, usePlanSubjects, usePlanTopics } from "@/hooks/usePlans";
+import { PlanTopicForm } from "@/components/forms/PlanTopicForm";
+import type { PlanTopicFormValues } from "@/schemas/planTopic.schema";
+import { useCreatePlanTopic, usePlans, usePlanSubjects, usePlanTopics } from "@/hooks/usePlans";
 import { useCreateStudySession } from "@/hooks/useStudySessions";
 import { useTimer } from "@/hooks/useTimer";
+import { SESSION_TYPES, getSessionTypeLabel } from "@/constants/sessionTypes";
+import type { SessionType } from "@/types";
 import { formatDuration } from "@/utils/datetime";
 
 export default function StudyPage() {
@@ -29,24 +33,28 @@ export default function StudyPage() {
   const [planId, setPlanId] = useState(searchParams.get("planId") ?? "");
   const [disciplinaId, setDisciplinaId] = useState(searchParams.get("disciplinaId") ?? "");
   const [topicoId, setTopicoId] = useState(searchParams.get("topicoId") ?? "");
+  const [tipo, setTipo] = useState<SessionType | "">("");
 
   const { data: subjects } = usePlanSubjects(planId || undefined);
   const { data: topics } = usePlanTopics(planId || undefined, disciplinaId || undefined);
 
   const timer = useTimer();
   const createSession = useCreateStudySession();
+  const createTopic = useCreatePlanTopic(planId);
 
   const [finishDialogOpen, setFinishDialogOpen] = useState(false);
   const [pendingStop, setPendingStop] = useState<ReturnType<typeof timer.stop> | null>(null);
   const [questoesCertas, setQuestoesCertas] = useState("");
   const [questoesErradas, setQuestoesErradas] = useState("");
   const [observacoes, setObservacoes] = useState("");
+  const [newTopicDialogOpen, setNewTopicDialogOpen] = useState(false);
 
   useEffect(() => {
     if (timer.activeTimer) {
       setPlanId(timer.activeTimer.planoId);
       setDisciplinaId(timer.activeTimer.disciplinaId);
       setTopicoId(timer.activeTimer.topicoId);
+      setTipo(timer.activeTimer.tipo);
     }
   }, [timer.activeTimer]);
 
@@ -58,11 +66,11 @@ export default function StudyPage() {
   const selectedTopic = useMemo(() => topics?.find((t) => t.id === topicoId), [topics, topicoId]);
 
   function handleStart() {
-    if (!planId || !disciplinaId || !topicoId) {
-      toast.error("Selecione plano, disciplina e tópico antes de iniciar");
+    if (!planId || !disciplinaId || !topicoId || !tipo) {
+      toast.error("Selecione plano, disciplina, tópico e o tipo de sessão antes de iniciar");
       return;
     }
-    timer.start({ planoId: planId, disciplinaId, topicoId });
+    timer.start({ planoId: planId, disciplinaId, topicoId, tipo });
   }
 
   function handleStop() {
@@ -78,6 +86,7 @@ export default function StudyPage() {
         planoId: pendingStop.planoId,
         disciplinaId: pendingStop.disciplinaId,
         topicoId: pendingStop.topicoId,
+        tipo: pendingStop.tipo,
         inicio: pendingStop.startedAt,
         fim: pendingStop.endedAt,
         duracao: pendingStop.durationMs,
@@ -93,6 +102,28 @@ export default function StudyPage() {
       setObservacoes("");
     } catch {
       toast.error("Não foi possível salvar a sessão de estudo");
+    }
+  }
+
+  async function handleCreateTopic(values: PlanTopicFormValues) {
+    try {
+      const newTopicId = await createTopic.mutateAsync({
+        planoId: planId,
+        disciplinaId,
+        topicoOriginalId: undefined,
+        nome: values.nome,
+        ordem: topics?.length ?? 0,
+        concluido: false,
+        percentualConclusao: 0,
+        tempoEstudado: 0,
+        questoesResolvidas: 0,
+        oculta: false,
+      });
+      setTopicoId(newTopicId);
+      setNewTopicDialogOpen(false);
+      toast.success("Tópico criado");
+    } catch {
+      toast.error("Não foi possível criar o tópico");
     }
   }
 
@@ -114,7 +145,7 @@ export default function StudyPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Cronômetro de estudos</h1>
-        <p className="text-sm text-muted-foreground">Plano → Disciplina → Tópico → Iniciar</p>
+        <p className="text-sm text-muted-foreground">Plano → Disciplina → Tópico → Tipo → Iniciar</p>
       </div>
 
       <Card>
@@ -170,22 +201,53 @@ export default function StudyPage() {
 
           <div className="space-y-2">
             <Label>Tópico</Label>
+            <div className="flex gap-2">
+              <Select
+                value={topicoId}
+                onValueChange={setTopicoId}
+                disabled={isRunning || isPaused || !disciplinaId}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecione um tópico" />
+                </SelectTrigger>
+                <SelectContent>
+                  {topics
+                    ?.filter((t) => !t.oculta)
+                    .map((topic) => (
+                      <SelectItem key={topic.id} value={topic.id}>
+                        {topic.nome}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setNewTopicDialogOpen(true)}
+                disabled={isRunning || isPaused || !disciplinaId}
+              >
+                <Plus className="size-4" />
+                Novo tópico
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Tipo de sessão</Label>
             <Select
-              value={topicoId}
-              onValueChange={setTopicoId}
-              disabled={isRunning || isPaused || !disciplinaId}
+              value={tipo}
+              onValueChange={(value) => setTipo(value as SessionType)}
+              disabled={isRunning || isPaused}
             >
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="Selecione um tópico" />
+                <SelectValue placeholder="O que você vai fazer?" />
               </SelectTrigger>
               <SelectContent>
-                {topics
-                  ?.filter((t) => !t.oculta)
-                  .map((topic) => (
-                    <SelectItem key={topic.id} value={topic.id}>
-                      {topic.nome}
-                    </SelectItem>
-                  ))}
+                {SESSION_TYPES.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -215,7 +277,8 @@ export default function StudyPage() {
               </p>
               {(isRunning || isPaused) && (
                 <p className="text-sm text-muted-foreground">
-                  {selectedPlan?.nome} · {selectedSubject?.nome} · {selectedTopic?.nome}
+                  {selectedPlan?.nome} · {selectedSubject?.nome} · {selectedTopic?.nome} ·{" "}
+                  {getSessionTypeLabel(timer.activeTimer?.tipo)}
                   {isPaused && " · Pausado"}
                 </p>
               )}
@@ -224,7 +287,7 @@ export default function StudyPage() {
 
           <div className="flex items-center gap-3">
             {!isRunning && !isPaused && (
-              <Button size="lg" onClick={handleStart} disabled={!planId || !disciplinaId || !topicoId}>
+              <Button size="lg" onClick={handleStart} disabled={!planId || !disciplinaId || !topicoId || !tipo}>
                 <Play className="size-5" />
                 Iniciar cronômetro
               </Button>
@@ -300,6 +363,19 @@ export default function StudyPage() {
               Salvar sessão
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={newTopicDialogOpen} onOpenChange={setNewTopicDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo tópico</DialogTitle>
+          </DialogHeader>
+          <PlanTopicForm
+            onSubmit={handleCreateTopic}
+            submitting={createTopic.isPending}
+            submitLabel="Criar tópico"
+          />
         </DialogContent>
       </Dialog>
     </div>

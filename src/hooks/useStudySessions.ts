@@ -18,7 +18,7 @@ export function useStudySessions(options?: {
   });
 }
 
-type SessionInput = Omit<StudySession, "id" | "userId">;
+export type SessionInput = Omit<StudySession, "id" | "userId">;
 
 export function useCreateStudySession() {
   const { user } = useAuth();
@@ -26,13 +26,18 @@ export function useCreateStudySession() {
   return useMutation({
     mutationFn: async (input: SessionInput) => {
       const sessionId = await sessionService.createStudySession(user!.uid, input);
-      const topics = await planService.listPlanTopics(input.planoId, user!.uid, input.disciplinaId);
-      const currentTopic = topics.find((t) => t.id === input.topicoId);
-      await planService.incrementPlanTopicStudyTime(
-        input.topicoId,
-        currentTopic?.tempoEstudado ?? 0,
-        input.duracao
-      );
+      if (input.topicoId) {
+        const topics = await planService.listPlanTopics(input.planoId, user!.uid, input.disciplinaId);
+        const currentTopic = topics.find((t) => t.id === input.topicoId);
+        const additionalQuestoes = (input.questoesCertas ?? 0) + (input.questoesErradas ?? 0);
+        await planService.incrementPlanTopicStudyTime(
+          input.topicoId,
+          currentTopic?.tempoEstudado ?? 0,
+          input.duracao,
+          currentTopic?.questoesResolvidas ?? 0,
+          additionalQuestoes
+        );
+      }
       return sessionId;
     },
     onSuccess: (_data, variables) => {
@@ -42,6 +47,25 @@ export function useCreateStudySession() {
         queryKey: ["planTopics", variables.planoId, variables.disciplinaId],
       });
     },
+  });
+}
+
+export function useCreateStudySessionsBatch() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (inputs: SessionInput[]) => sessionService.createStudySessionsBatch(user!.uid, inputs),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["studySessions", user?.uid] }),
+  });
+}
+
+export function useUpdateStudySession() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sessionId, input }: { sessionId: string; input: Partial<SessionInput> }) =>
+      sessionService.updateStudySession(sessionId, input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["studySessions", user?.uid] }),
   });
 }
 

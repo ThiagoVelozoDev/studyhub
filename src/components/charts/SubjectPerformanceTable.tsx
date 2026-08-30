@@ -16,7 +16,7 @@ interface SubjectPerformanceTableProps {
   planId: string | undefined;
 }
 
-function accuracyClassName(pct: number): string {
+export function accuracyClassName(pct: number): string {
   if (pct >= 70) return "border-transparent bg-green-500/15 text-green-700 dark:text-green-400";
   if (pct >= 60) return "border-transparent bg-yellow-500/15 text-yellow-700 dark:text-yellow-400";
   return "border-transparent bg-red-500/15 text-red-700 dark:text-red-400";
@@ -39,6 +39,7 @@ export function SubjectPerformanceTable({ data, planId }: SubjectPerformanceTabl
           <TableHead>Tempo</TableHead>
           <TableHead className="text-right">Certas</TableHead>
           <TableHead className="text-right">Erradas</TableHead>
+          <TableHead className="text-right">Total</TableHead>
           <TableHead className="text-right">%</TableHead>
         </TableRow>
       </TableHeader>
@@ -63,6 +64,7 @@ export function SubjectPerformanceTable({ data, planId }: SubjectPerformanceTabl
             <TableCell className="text-right text-destructive">
               {subject.questoes - subject.acertos}
             </TableCell>
+            <TableCell className="text-right text-muted-foreground">{subject.questoes}</TableCell>
             <TableCell className="text-right">
               {subject.questoes > 0 ? (
                 <Badge variant="outline" className={accuracyClassName(subject.percentualAcerto)}>

@@ -8,6 +8,54 @@ afete stack, padrão de código, configuração ou decisão de arquitetura,
 adicionar uma entrada nova no topo deste arquivo e atualizar o `docs/*.md`
 correspondente na mesma tarefa — ver `CLAUDE.md`.
 
+## Tópico avulso e tipo de sessão no cronômetro (`/study`)
+
+- Novo botão "Novo tópico" ao lado do Select de Tópico em `/study`: cria um
+  `PlanTopic` avulso (não copiado do edital) direto no plano atual, via a
+  nova `createPlanTopic` (`planService.ts`) + `useCreatePlanTopic`
+  (`usePlans.ts`), mesmo padrão de `createEditalTopic`. Antes, um tópico só
+  entrava num plano sendo copiado do edital na criação do plano — não havia
+  como adicionar um novo depois. O tópico criado fica salvo no plano e
+  disponível nas próximas sessões, sem afetar o edital de origem.
+- Nova etapa "Tipo de sessão" antes de iniciar o cronômetro: Estudar (vídeo
+  aula), Questões ou Simulado (`SessionType`, `src/constants/sessionTypes.ts`).
+  Guardado em `StudySession.tipo` (campo novo, opcional) e exibido na coluna
+  "Tipo" do Histórico.
+
+## Lançamento manual de sessões de estudo (Histórico) e correção de `questoesResolvidas`
+
+- `/history` ganhou os botões "Adicionar registro" e "Editar" por linha,
+  abrindo `StudySessionForm` (novo, com schema `studySession.schema.ts`) num
+  `Dialog` — até então a única forma de criar uma `StudySession` era rodar o
+  cronômetro ao vivo em `/study`; não havia como registrar um bloco de
+  estudo retroativo (ex.: importar histórico de outro app) nem editar uma
+  sessão já salva (`updateStudySession` existia no serviço, mas nunca era
+  chamado).
+- `StudySession.topicoId` passou a ser opcional — um registro manual "por
+  disciplina" (sem tópico específico) agora é permitido; sessões do
+  cronômetro continuam sempre preenchendo o tópico normalmente.
+- Novo campo opcional `StudySession.questoesBrancas`, ao lado de
+  `questoesCertas`/`questoesErradas`.
+- Corrigido `PlanTopic.questoesResolvidas`, que nunca era incrementado (nem
+  pelo cronômetro normal) — `incrementPlanTopicStudyTime` agora também
+  soma `certas + erradas` (sem contar brancas, mesma convenção do cálculo de
+  `percentualAcerto`) ao criar uma sessão com tópico definido.
+- `SubjectPerformanceTable` ganhou a coluna "Total" (soma de questões por
+  disciplina).
+- Nova página `/history/totais` (botão "Lançar totais por disciplina" em
+  `/history`): escolhe um plano e preenche uma tabela com uma linha por
+  disciplina (Horas/Minutos/Certas/Erradas/Brancas, Total/% calculados ao
+  vivo) para lançar o histórico inteiro de uma vez, em vez de repetir
+  "Adicionar registro" uma vez por disciplina. Cria as sessões num único
+  `writeBatch` (`createStudySessionsBatch`/`useCreateStudySessionsBatch`).
+- Corrigido bug encontrado durante a verificação manual: em `/history`, as
+  colunas Disciplina/Tópico só resolviam o nome quando um Plano específico
+  estava selecionado no filtro (com "Todos" selecionado, sempre mostravam
+  "-", mesmo para sessões antigas válidas) — os mapas de nome agora usam
+  `useAllPlanSubjects`/`useAllPlanTopics` (novos hooks, sem filtro de
+  `planoId`), independentes dos hooks escopados que ainda alimentam as
+  opções dos Selects de filtro.
+
 ## "Minha Evolução": Dashboard + Estatísticas viram uma análise em etapas
 
 - Dashboard e Estatísticas (páginas e itens de menu separados) foram

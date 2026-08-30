@@ -35,9 +35,11 @@ EditalTopic                          PlanTopic
 
 StudySession                          Goal
 ├── id, userId                        ├── id, userId, planoId?
-├── planoId, disciplinaId, topicoId   ├── periodo: "diaria"|"semanal"|"mensal"
-├── inicio, fim, duracao (ms)         ├── metaMinutos, diasEstudo? (só na "diaria")
-├── questoesCertas?, questoesErradas? └── createdAt
+├── planoId, disciplinaId, topicoId?  ├── periodo: "diaria"|"semanal"|"mensal"
+├── tipo?: SessionType                ├── metaMinutos, diasEstudo? (só na "diaria")
+├── inicio, fim, duracao (ms)         └── createdAt
+├── questoesCertas?, questoesErradas?
+├── questoesBrancas?
 └── observacoes?
 
 UserProfile
@@ -149,8 +151,12 @@ Cada hook envolve um serviço com TanStack Query:
   — tanto a lista quanto o detalhe quando fizer sentido.
 - **Invalidação cruzada**: `useCreateStudySession`
   (`src/hooks/useStudySessions.ts`) registra a sessão E incrementa
-  `tempoEstudado` do `PlanTopic` correspondente na mesma mutação — por isso
-  invalida `studySessions` **e** `planTopics` no `onSuccess`.
+  `tempoEstudado`/`questoesResolvidas` do `PlanTopic` correspondente na mesma
+  mutação — por isso invalida `studySessions` **e** `planTopics` no
+  `onSuccess`. `StudySession.topicoId` é opcional (registro manual "por
+  disciplina", sem tópico específico — ver seção "Lançamento manual" abaixo);
+  quando ausente, esse incremento é pulado por completo, só o documento de
+  `StudySession` é criado.
 - O `userId` vem sempre de `useAuth()` dentro do próprio hook, nunca é
   passado pelo componente de página.
 
@@ -275,6 +281,68 @@ pausa/retomada: `pause()` soma o segmento atual em `accumulatedMs` e zera
 `segmentStartedAt`; `resume()` apenas marca um novo `segmentStartedAt`. Isso
 garante que o tempo pausado nunca conta como estudado, e que o cronômetro
 sobrevive a reload de página (persistido em `localStorage`).
+
+### Tipo de sessão e tópico avulso
+
+Antes de iniciar o cronômetro, além de Plano/Disciplina/Tópico, o usuário
+escolhe o **tipo de sessão** (`SessionType`: `"aula"` | `"questoes"` |
+`"simulado"`, rótulos em `src/constants/sessionTypes.ts`) — vai junto para
+o `ActiveTimerState` (`useTimer.ts`) e é gravado em `StudySession.tipo` ao
+salvar. Campo opcional no tipo (`tipo?`), pelo mesmo motivo de `topicoId?`:
+sessões antigas no Firestore não têm esse campo e não há migração.
+
+Se o tópico que a pessoa quer estudar não está na lista (copiada do edital
+na criação do plano), o botão "Novo tópico" ao lado do Select de Tópico
+(`StudyPage.tsx`) abre um formulário (`PlanTopicForm`) que cria um
+`PlanTopic` avulso via `createPlanTopic` (`planService.ts`) — mesmo padrão
+de `createEditalTopic`, mas gravando direto em `planTopics`, sem tocar no
+edital de origem. É a primeira forma de adicionar um tópico a um plano já
+criado sem passar por `createPlanFromEdital`; **não** viola "Edital =
+template, Plano = cópia" acima porque nunca escreve de volta no edital nem
+em outros planos — `topicoOriginalId` fica `undefined`, mesmo tratamento já
+prometido pelo tipo `PlanTopic` para tópicos sem proveniência.
+
+## Lançamento manual de sessão de estudo (`/history`)
+
+Além do cronômetro (`/study`), `StudySession` pode ser criada/editada
+diretamente na página Histórico (`src/pages/History/HistoryPage.tsx`), via
+botões "Adicionar registro"/"Editar" abrindo um `Dialog` com
+`src/components/forms/StudySessionForm.tsx` — usado tanto para criar
+(sem `defaultValues`) quanto para editar (com `defaultValues` calculados a
+partir da sessão clicada, via `sessionToFormDefaults` no próprio
+`HistoryPage.tsx`). Schema em `src/schemas/studySession.schema.ts`, seguindo
+o padrão de formulário documentado acima.
+
+Diferenças em relação ao cronômetro:
+- O tempo é digitado como **horas + minutos** (duração), não como
+  início/fim reais — o formulário converte para `inicio`/`fim`/`duracao` no
+  handler de submit do `HistoryPage.tsx` (`inicio` = meio-dia da data
+  escolhida, para não sofrer deslocamento de dia por fuso horário).
+- O campo Tópico é opcional (sentinel `"none"` no `Select`, já que Radix não
+  aceita `value=""`) — permite um registro "por disciplina", sem tópico
+  específico, útil para importar totais agregados de outra ferramenta de
+  estudo (ex.: um lançamento por disciplina em vez de um por tópico).
+- Editar/excluir uma sessão manual **não** reconcile `PlanTopic.tempoEstudado`/
+  `questoesResolvidas` (mesma limitação que já existia para exclusão antes
+  desta feature) — só a criação com tópico definido incrementa esses campos.
+
+### Lançamento em lote (`/history/totais`)
+
+Segunda forma de criar `StudySession`, para quando o usuário tem muitos
+registros históricos "por disciplina" para lançar de uma vez (ex.: importar
+o resumo de outra ferramenta de estudo) sem repetir o diálogo de "Adicionar
+registro" uma vez por disciplina. `src/pages/History/BulkTotalsPage.tsx`:
+escolhe um Plano, define uma única Data (aplicada a todas as linhas), e
+preenche uma tabela com uma linha por `PlanSubject` do plano (Horas/Minutos/
+Certas/Erradas/Brancas, com Total/% calculados ao vivo reaproveitando
+`accuracyClassName`, exportado de `SubjectPerformanceTable.tsx`). Linhas
+totalmente vazias são ignoradas no envio.
+
+Usa `sessionService.createStudySessionsBatch`/`useCreateStudySessionsBatch`
+(`src/hooks/useStudySessions.ts`) — um único `writeBatch` para todas as
+linhas preenchidas, todas sem `topicoId` (mesma regra "sem tópico → sem
+incremento em `PlanTopic`" da seção anterior). `firestore.rules` não precisa
+de mudança: `ownsNewDoc()` já cobre documentos criados via `writeBatch`.
 
 ## Tema (claro/escuro)
 

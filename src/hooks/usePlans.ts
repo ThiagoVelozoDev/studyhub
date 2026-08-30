@@ -38,6 +38,24 @@ export function usePlanTopics(planId: string | undefined, disciplinaId?: string)
   });
 }
 
+export function useAllPlanSubjects() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["planSubjects", "byUser", user?.uid],
+    queryFn: () => planService.listAllPlanSubjectsForUser(user!.uid),
+    enabled: !!user,
+  });
+}
+
+export function useAllPlanTopics() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["planTopics", "byUser", user?.uid],
+    queryFn: () => planService.listAllPlanTopicsForUser(user!.uid),
+    enabled: !!user,
+  });
+}
+
 type PlanInput = Omit<Plan, "id" | "userId" | "createdAt">;
 
 export function useCreatePlanFromEdital() {
@@ -68,6 +86,19 @@ export function useDeletePlan() {
   return useMutation({
     mutationFn: (planId: string) => planService.deletePlan(planId, user!.uid),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["plans", user?.uid] }),
+  });
+}
+
+export function useCreatePlanTopic(planId: string) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Omit<PlanTopic, "id" | "userId">) =>
+      planService.createPlanTopic({ ...input, userId: user!.uid }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["planTopics", planId] });
+      queryClient.invalidateQueries({ queryKey: ["planTopics", "byUser", user?.uid] });
+    },
   });
 }
 
