@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Pause, Square, Timer as TimerIcon, ClipboardList, Plus } from "lucide-react";
+import { Play, Pause, Square, Timer as TimerIcon, ClipboardList, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -13,6 +13,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,6 +58,7 @@ export default function StudyPage() {
   const [questoesErradas, setQuestoesErradas] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [newTopicDialogOpen, setNewTopicDialogOpen] = useState(false);
+  const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
 
   useEffect(() => {
     if (timer.activeTimer) {
@@ -77,6 +88,16 @@ export default function StudyPage() {
     const result = timer.stop();
     setPendingStop(result);
     setFinishDialogOpen(true);
+  }
+
+  function handleConfirmDiscard() {
+    timer.discard();
+    setPlanId("");
+    setDisciplinaId("");
+    setTopicoId("");
+    setTipo("");
+    setDiscardDialogOpen(false);
+    toast.success("Sessão descartada");
   }
 
   async function handleConfirmFinish() {
@@ -310,6 +331,12 @@ export default function StudyPage() {
                 Finalizar sessão
               </Button>
             )}
+            {(isRunning || isPaused) && (
+              <Button size="lg" variant="outline" onClick={() => setDiscardDialogOpen(true)}>
+                <Trash2 className="size-5" />
+                Descartar
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -378,6 +405,24 @@ export default function StudyPage() {
           />
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={discardDialogOpen} onOpenChange={setDiscardDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Descartar sessão de estudo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O tempo estudado ({formatDuration(timer.elapsedMs)}) será perdido e nada será
+              salvo. Essa ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={handleConfirmDiscard}>
+              Descartar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
