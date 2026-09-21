@@ -34,7 +34,7 @@ export function Topbar() {
   }
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border/60 bg-background/80 px-4 backdrop-blur">
+    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border/60 bg-background/80 px-4 backdrop-blur print:hidden">
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <Button
           variant="ghost"

@@ -130,3 +130,11 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Impressão: hoje só /schedule imprime (ver docs/DECISIONS.md) — @page é
+   global ao documento, não dá pra escopar por classe/rota. Se uma página
+   futura precisar de retrato, esta regra precisa ser revisitada. */
+@page {
+  size: landscape;
+  margin: 12mm;
+}

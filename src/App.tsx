@@ -11,6 +11,7 @@ const AnalysisPage = lazy(() => import("@/pages/Dashboard/AnalysisPage"));
 const StudyPage = lazy(() => import("@/pages/Study/StudyPage"));
 const PlansPage = lazy(() => import("@/pages/Plans/PlansPage"));
 const PlanDetailPage = lazy(() => import("@/pages/Plans/PlanDetailPage"));
+const SchedulePage = lazy(() => import("@/pages/Schedule/SchedulePage"));
 const EditalsPage = lazy(() => import("@/pages/Editals/EditalsPage"));
 const EditalDetailPage = lazy(() => import("@/pages/Editals/EditalDetailPage"));
 const HistoryPage = lazy(() => import("@/pages/History/HistoryPage"));
@@ -41,6 +42,7 @@ function App() {
             <Route path="/study" element={<StudyPage />} />
             <Route path="/plans" element={<PlansPage />} />
             <Route path="/plans/:planId" element={<PlanDetailPage />} />
+            <Route path="/schedule" element={<SchedulePage />} />
             <Route path="/editals" element={<EditalsPage />} />
             <Route path="/editals/:editalId" element={<EditalDetailPage />} />
             <Route path="/history" element={<HistoryPage />} />

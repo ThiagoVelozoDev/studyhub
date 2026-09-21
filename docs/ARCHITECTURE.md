@@ -6,8 +6,24 @@
 
 ## Modelo de dados (`src/types/index.ts`)
 
-Todas as datas são `Timestamp = number` (epoch ms) — mesmo quando o Firestore
-grava via `serverTimestamp()`, o valor é tratado como número no app.
+Todas as datas são tipadas como `Timestamp = number` (epoch ms) — mas essa
+tipagem só é **verdadeira de fato** para campos calculados no cliente
+(`new Date(input).getTime()`/`Date.now()`, ex.: `Plan.dataProva`,
+`PlanTopic.ultimaRevisao`). Campos gravados via `serverTimestamp()`
+(`createdAt`/`updatedAt` de `Edital`/`Plan`/`Goal`/`Schedule`/`UserProfile`)
+voltam do Firestore como **instância da classe `Timestamp` do SDK**, não como
+`number` — o `as Entidade` nos services (`{ id: d.id, ...d.data() } as X`) é
+só uma asserção de tipo, não converte nada em runtime. Isso nunca quebrou
+porque o único uso desses campos era ordenação (`.sort((a,b) =>
+b.createdAt - a.createdAt)`, que "funciona" porque `Timestamp` implementa
+`valueOf()`) — até `Schedule.createdAt` precisar ser exibido como data
+legível em `ArchivedSchedulesList.tsx` via `date-fns` `format()`, que espera
+`number`/`Date`/string e lança `RangeError: Invalid time value` ao receber
+um `Timestamp`. `listSchedules` (`src/services/firestore/scheduleService.ts`)
+normaliza isso com um helper `toMillis` (`value instanceof Timestamp ?
+value.toMillis() : value`) ao mapear os documentos. **Outras entidades ainda
+não têm essa normalização** — se algum dia precisarem formatar `createdAt`
+como data, vão precisar do mesmo tratamento.
 
 ```
 Edital (template)                    Plan (cópia personalizável)
@@ -41,6 +57,13 @@ StudySession                          Goal
 ├── questoesCertas?, questoesErradas?
 ├── questoesBrancas?
 └── observacoes?
+
+Schedule                              ScheduleItem
+├── id, userId, planoId               ├── id, userId, cronogramaId (→ Schedule)
+├── status: "ativo"|"arquivado"       ├── diaSemana, disciplinaId (→ PlanSubject)
+├── minutosPorDia, questoesPorDia     ├── ordem
+├── diasEstudo                        ├── minutosPlanejados, questoesPlanejadas
+└── createdAt                         └── concluido
 
 UserProfile
 ├── uid, nome, email, photoURL?
@@ -344,6 +367,98 @@ linhas preenchidas, todas sem `topicoId` (mesma regra "sem tópico → sem
 incremento em `PlanTopic`" da seção anterior). `firestore.rules` não precisa
 de mudança: `ownsNewDoc()` já cobre documentos criados via `writeBatch`.
 
+## Cronograma de estudos (`/schedule`)
+
+Gera uma grade semanal fixa (Segunda→Domingo, sem datas — sempre os mesmos 7
+dias) a partir das `PlanSubject` visíveis do plano ativo (`useActivePlan`).
+Modelo: `Schedule` (a configuração — `minutosPorDia`, `questoesPorDia`,
+`materiasPorDia`, `diasEstudo`, `numeroSemanas` — e o `status`: `"ativo"` |
+`"arquivado"`) e `ScheduleItem` (uma disciplina atribuída a uma `semana` +
+`diaSemana`, com minutos/questões planejados e `concluido`).
+
+- **`materiasPorDia` é um teto fixo, não uma média**: o usuário informa
+  quantas disciplinas quer por dia; `generateScheduleItems`
+  (`src/utils/scheduleGenerator.ts`, função pura) faz um chunking explícito
+  — corta `subjects` (já ordenado pela prioridade escolhida) em blocos de
+  `diasEstudo.length × materiasPorDia` (uma "semana") e, dentro de cada
+  semana, em blocos de `materiasPorDia` por dia. Se um dia não tem
+  disciplina suficiente para preencher o bloco, fica livre — não é
+  redistribuída sobra entre dias, é o comportamento mais previsível para um
+  teto fixo.
+- **Rodízio de semanas quando não cabe em uma só**: se
+  `subjects.length > diasEstudo.length × materiasPorDia`, o excedente vira
+  semanas seguintes (`ScheduleItem.semana` incrementa por bloco) em vez de
+  descartar disciplinas. `computeNumeroSemanas`/`computeScheduleCapacity`
+  (mesmo arquivo) calculam isso; a UI (`ScheduleWeekGrid`) navega entre
+  semanas com Anterior/Próxima, "Próxima" na última volta para a primeira
+  (visualiza o loop). Sem mismatch, `numeroSemanas` é sempre `1` — degrada
+  para o caso simples.
+- **Resolução do mismatch dentro do próprio formulário**
+  (`ScheduleConfigForm.tsx`, sem dialog/wizard separado): quando a
+  configuração não cobre todas as disciplinas, aparece um painel condicional
+  perguntando (a) estudar todas em rodízio vs. focar num grupo de
+  `capacidade` disciplinas agora, e (b) prioridade — "Intercalado"
+  (recomendado), "Básicas primeiro" ou "Específicas primeiro". A escolha só
+  afeta a **ordem**/corte de `subjects` antes de chamar `generateScheduleItems`
+  (em `createSchedule`, `scheduleService.ts`) — não é persistida em
+  `Schedule`, é estado transiente da geração.
+- **Classificação básica/específica por palavra-chave, não IA**:
+  `src/utils/subjectPriority.ts` (`isBasicSubject`, `sortSubjectsByPriority`)
+  testa o nome da disciplina contra `BASIC_SUBJECT_KEYWORDS`
+  (`src/constants/basicSubjectKeywords.ts`, lista extensível como
+  `EDITAL_CATEGORIAS`) — sem chamar um LLM do cliente (ver
+  `docs/DECISIONS.md`) nem exigir um campo manual novo por disciplina.
+  "Intercalado" alterna item a item entre a sublista de básicas e a de
+  específicas (prática intercalada), mantendo a ordem relativa (`ordem` do
+  plano) dentro de cada sublista.
+- **Reconfigurar arquiva, não sobrescreve**: `createSchedule`
+  (`src/services/firestore/scheduleService.ts`) arquiva o `Schedule` ativo
+  anterior do plano (`status: "arquivado"`) ao criar um novo, num único
+  `writeBatch` — nunca apaga um cronograma antigo. `restoreSchedule` troca
+  qual é o ativo (arquiva o atual, marca o escolhido como ativo) sem
+  regenerar `ScheduleItem`, permitindo voltar a uma configuração anterior.
+- **Capa com dados do edital**: `ScheduleCover` busca o `Edital` de origem
+  via `useEdital(plan.editalId)` e mostra nome/órgão/cargo/banca como
+  cabeçalho personalizado.
+- **Tema visual por carreira**: `src/constants/careerThemes.ts` mapeia
+  `Edital.categoria` (mesmas chaves de `EDITAL_CATEGORIAS`) para um
+  `CareerTheme` (paleta, gradiente, imagem de fundo, ícone `lucide-react`,
+  frases motivacionais), via `getCareerTheme(categoria)` — cai em
+  `careerThemes.outros` para categoria vazia/desconhecida, nunca quebra.
+  Lista extensível de propósito, mesmo padrão de `EDITAL_CATEGORIAS`:
+  adicionar uma carreira nova é só acrescentar uma entrada, sem tocar
+  `scheduleGenerator.ts`/`subjectPriority.ts` (a geração do cronograma
+  continua 100% agnóstica de carreira).
+  `ScheduleCover` usa esse tema para renderizar um hero com imagem de fundo
+  que imprime igual à tela (`print-color-adjust: exact` evita clarear as
+  cores do tema na impressão) — não existe mais uma variante compacta só
+  para impressão; a foto/cores do tema só saem impressas se o usuário
+  habilitar "Imprimir gráficos de segundo plano" no navegador (ver
+  `docs/DECISIONS.md`). A imagem de cada tema (`CareerTheme.backgroundImage`)
+  vem de `public/`
+  (`/images/careers/{categoria}.webp`, temas ainda sem foto real) ou de um
+  asset importado de `src/assets/` e resolvido pelo bundler (caso do tema
+  `policial`, `src/assets/banner/policiais/banner.png`); ela é aplicada em
+  camadas de `background-image` (overlay + foto + gradiente do tema); se o
+  arquivo de `public/` não existir em disco, aquela camada simplesmente não
+  pinta e o gradiente aparece sozinho — sem `onError`/JS. As cores do tema
+  são aplicadas via `style` inline **local** ao hero, nunca em
+  `:root`/`.dark` (ver `docs/DECISIONS.md`).
+- **Progresso do cronograma**: `computeScheduleProgress`
+  (`src/utils/scheduleProgress.ts`) calcula a % de `ScheduleItem.concluido`
+  sobre **todos** os itens do cronograma ativo (todas as semanas, não só a
+  semana exibida) — evita que a barra do hero "pule" ao navegar entre
+  semanas.
+- **Impressão via `print:` do Tailwind**: `window.print()` reaproveita a
+  mesma grade renderizada na tela, em vez de gerar um PDF separado com
+  jsPDF/autoTable (que produziria uma tabela simples, não a grade colorida).
+  `MainLayout.tsx`/`Topbar.tsx` escondem sidebar/topbar com `print:hidden`;
+  botões de ação da página usam a mesma classe. `src/index.css` tem uma
+  regra `@page { size: landscape; margin: 12mm; }` global forçando
+  paisagem na impressão, pra a grade de 7 dias caber lado a lado — global
+  porque `@page` não pode ser escopado por rota em CSS, seguro hoje porque
+  `/schedule` é a única página do app que imprime (ver `docs/DECISIONS.md`).
+
 ## Tema (claro/escuro)
 
 - `src/index.css`: CSS custom properties em `:root` (claro) e `.dark`
@@ -354,6 +469,15 @@ de mudança: `ownsNewDoc()` já cobre documentos criados via `writeBatch`.
 - A **sidebar tem fundo escuro fixo** (`bg-[#111827]` hardcoded em
   `Sidebar.tsx`) **independente do tema geral** — não usa as CSS variables
   de tema, é intencional (estilo Linear/Notion).
+- **Sidebar recolhível** (`src/hooks/useSidebarCollapsed.ts`): mesmo padrão
+  de `useTheme.ts` (chave `localStorage["studyhub:sidebarCollapsed"]`, sem
+  Context). `MainLayout.tsx` alterna a largura do `<aside>` entre `w-64` e
+  `w-[72px]`; `SidebarNav` (`Sidebar.tsx`) recebe `collapsed`/
+  `onToggleCollapse` **opcionais** — só o uso desktop em `MainLayout.tsx`
+  passa esses props; o `Sheet` mobile em `Topbar.tsx` nunca colapsa (é um
+  overlay, não faz sentido recolher um menu que já se fecha sozinho).
+  Recolhido, esconde labels/banner motivacional e mostra o nome de cada item
+  num `Tooltip` (`TooltipProvider` já envolve o app em `main.tsx`).
 
 ## Mapa de pastas
 

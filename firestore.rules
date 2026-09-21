@@ -98,5 +98,17 @@ service cloud.firestore {
       allow read, update, delete: if ownsDoc();
       allow create: if ownsNewDoc();
     }
+
+    // schedules: dono direto via userId
+    match /schedules/{scheduleId} {
+      allow read, update, delete: if ownsDoc();
+      allow create: if ownsNewDoc();
+    }
+
+    // scheduleItems: userId denormalizado do cronograma pai
+    match /scheduleItems/{itemId} {
+      allow read, update, delete: if ownsDoc();
+      allow create: if ownsNewDoc();
+    }
   }
 }

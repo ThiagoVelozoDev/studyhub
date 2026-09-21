@@ -8,6 +8,108 @@ afete stack, padrão de código, configuração ou decisão de arquitetura,
 adicionar uma entrada nova no topo deste arquivo e atualizar o `docs/*.md`
 correspondente na mesma tarefa — ver `CLAUDE.md`.
 
+## Impressão do cronograma replica o hero rico e força paisagem
+
+- `ScheduleCover` deixou de ter uma segunda variante compacta/tema-neutra
+  só para impressão — o mesmo hero rico (foto de fundo, cores do tema,
+  ícone, barra de progresso, frase motivacional) usado na tela agora
+  também é usado por `window.print()`/"Salvar como PDF", com
+  `print-color-adjust: exact` para preservar as cores do tema.
+- Novo `@page { size: landscape; margin: 12mm; }` em `src/index.css` força
+  orientação paisagem na impressão, para a grade de 7 dias caber lado a
+  lado — regra global (não é possível escopar `@page` por rota em CSS),
+  segura hoje porque `/schedule` é a única página do app com
+  `print:`/`window.print()` (ver `docs/DECISIONS.md`).
+- Cores e foto de fundo só aparecem impressas se o usuário habilitar
+  "Imprimir gráficos de segundo plano" ("Background graphics") na janela
+  de impressão do navegador — limitação do navegador, não contornável via
+  CSS.
+
+## Imagem real de fundo no hero do tema "Policial"
+
+- `careerThemes.policial.backgroundImage` agora aponta para
+  `src/assets/banner/policiais/banner.png`, importado como asset do Vite
+  (`import policialBanner from "@/assets/banner/policiais/banner.png"`),
+  em vez do caminho estático em `public/` que ainda não existia. É o
+  primeiro tema com foto real — os demais (`tribunais`, `fiscal`,
+  `administrativo`, `outros`) continuam usando só o gradiente até que suas
+  imagens sejam adicionadas. `ScheduleCover` não precisou de nenhuma
+  mudança: já consumia `theme.backgroundImage` como uma URL qualquer.
+
+## Tema visual por carreira no cronograma (`/schedule`)
+
+- `ScheduleCover` agora resolve um tema visual (paleta, ícone, imagem de
+  fundo em camadas com fallback e frases motivacionais) a partir de
+  `Edital.categoria`, via novo registry `src/constants/careerThemes.ts`
+  (`getCareerTheme`, mesmo padrão extensível de `EDITAL_CATEGORIAS`) — a
+  lógica de geração do cronograma (`scheduleGenerator.ts`/
+  `subjectPriority.ts`) não foi alterada, continua 100% agnóstica de
+  carreira.
+- `ScheduleCover` ganhou duas variantes no mesmo componente: hero rico com
+  imagem de fundo para tela, versão compacta sem imagem para impressão —
+  mantém o cronograma leve o suficiente para caber em uma página impressa.
+- Nova barra de progresso no hero (`computeScheduleProgress`,
+  `src/utils/scheduleProgress.ts`), calculada sobre `ScheduleItem.concluido`
+  de todas as semanas do cronograma ativo.
+- Cores do tema aplicadas via `style` inline local ao hero, nunca nos
+  tokens globais de tema — não afeta o claro/escuro do resto do app (ver
+  `docs/DECISIONS.md`).
+- Imagens de fundo reais ainda não foram adicionadas (`public/images/
+  careers/{categoria}.webp`); até lá o hero usa só o gradiente de cada
+  tema.
+
+## Correção: tela em branco ao abrir `/schedule` com cronograma arquivado
+
+- `ArchivedSchedulesList` lançava `RangeError: Invalid time value` (crash de
+  página inteira) ao formatar `Schedule.createdAt` com `date-fns` — esse
+  campo, gravado via `serverTimestamp()`, volta do Firestore como instância
+  de `Timestamp` do SDK, não como `number` (apesar do tipo declarado).
+  `listSchedules` agora normaliza esse campo para `number` ao ler os
+  documentos. Ver nota em `docs/ARCHITECTURE.md` — o mesmo problema, ainda
+  não corrigido, existe em outras entidades caso algum dia precisem exibir
+  `createdAt` como data.
+
+## Matérias por dia, rodízio de semanas e sidebar recolhível
+
+- `/schedule` agora pergunta também **quantas matérias por dia** (teto
+  fixo, não mais implícito por round-robin). Quando as disciplinas do plano
+  não cabem em uma semana com essa configuração, um painel aparece
+  perguntando se o usuário quer estudar **todas** (rodízio de várias
+  semanas que se repete em loop — `Schedule.numeroSemanas`,
+  `ScheduleItem.semana`) ou **focar** num grupo agora, e qual prioridade
+  usar: **Intercalado** (recomendado — básicas e específicas alternadas),
+  Básicas primeiro ou Específicas primeiro. Classificação básica/específica
+  por palavra-chave (`src/constants/basicSubjectKeywords.ts`), sem IA.
+- Grade semanal ganhou navegação Anterior/Próxima entre semanas do rodízio
+  quando há mais de uma.
+- Corrigido vazamento de conteúdo (texto de disciplina cortando/estourando
+  o card em nomes longos) e melhorada a responsividade da grade em telas
+  médias/mobile.
+- Menu lateral (sidebar) agora pode ser recolhido para uma faixa só de
+  ícones, com tooltip mostrando o nome de cada item; estado persistido em
+  `localStorage`.
+
+## Cronograma de estudos gerado a partir do edital (`/schedule`)
+
+- Novo item de menu "Cronograma": lê as disciplinas do plano ativo (que
+  vieram do edital) e, respondendo 3 perguntas (horas de estudo por dia,
+  questões por dia, dias da semana), gera uma grade semanal fixa
+  (Segunda→Domingo) distribuindo as disciplinas por round-robin — sem
+  depender de um campo de peso/prioridade, que não existe no modelo.
+- Cabeçalho/capa com os dados do edital vinculado ao plano (nome do
+  concurso, órgão, cargo, banca), como um cronograma personalizado.
+- Acompanhamento na tela: cada disciplina do dia tem um checkbox de
+  concluído, persistido no Firestore. Botão "Imprimir" usa impressão nativa
+  do navegador (`window.print()` + variant `print:` do Tailwind), sem gerar
+  PDF separado.
+- Reconfigurar o cronograma não apaga o anterior — ele é arquivado e pode
+  ser restaurado depois ("Cronogramas anteriores" na página).
+- Novas entidades `Schedule`/`ScheduleItem`, coleções `schedules`/
+  `scheduleItems`, serviço `scheduleService.ts`, hooks `useSchedules.ts`.
+  **Requer publicar manualmente as novas regras de `firestore.rules` no
+  Console do Firebase** antes de criar/reconfigurar/restaurar um cronograma
+  funcionar em produção (ver `docs/CONFIGURATION.md`).
+
 ## Tópico avulso e tipo de sessão no cronômetro (`/study`)
 
 - Novo botão "Novo tópico" ao lado do Select de Tópico em `/study`: cria um

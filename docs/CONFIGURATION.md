@@ -23,6 +23,8 @@ Storage) do navegador — não existe nenhuma API própria nem Cloud Function.
 | `PLAN_TOPICS` | `planTopics` |
 | `STUDY_SESSIONS` | `studySessions` |
 | `GOALS` | `goals` |
+| `SCHEDULES` | `schedules` |
+| `SCHEDULE_ITEMS` | `scheduleItems` |
 
 Todas são coleções de nível raiz (não sub-coleções aninhadas) — a hierarquia
 lógica (edital → disciplina → tópico) é modelada via campos de referência
@@ -133,6 +135,18 @@ service cloud.firestore {
       allow read, update, delete: if ownsDoc();
       allow create: if ownsNewDoc();
     }
+
+    // schedules: dono direto via userId
+    match /schedules/{scheduleId} {
+      allow read, update, delete: if ownsDoc();
+      allow create: if ownsNewDoc();
+    }
+
+    // scheduleItems: userId denormalizado do cronograma pai
+    match /scheduleItems/{itemId} {
+      allow read, update, delete: if ownsDoc();
+      allow create: if ownsNewDoc();
+    }
   }
 }
 ```
@@ -147,6 +161,12 @@ isso `useEditals()` (`src/hooks/useEditals.ts`) trata essa falha como
 degradação suave (cai para só os editais próprios) em vez de quebrar a
 página inteira. Ainda assim, os editais públicos só ficam realmente visíveis
 a outros usuários **depois** do deploy destas regras.
+
+Mesma exigência para os blocos `schedules`/`scheduleItems` acima: sem eles
+publicados, ler o cronograma degrada para "nenhum cronograma configurado"
+(leitura só falha e é ignorada), mas **criar, reconfigurar ou restaurar** um
+cronograma falha com `Missing or insufficient permissions` (erro tratado com
+um toast, sem quebrar a página) até a publicação manual.
 
 **Bootstrap do primeiro admin**: não existe fluxo no app para criar o
 primeiro administrador — é necessário editar manualmente o documento

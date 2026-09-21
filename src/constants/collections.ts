@@ -8,4 +8,6 @@ export const COLLECTIONS = {
   PLAN_TOPICS: "planTopics",
   STUDY_SESSIONS: "studySessions",
   GOALS: "goals",
+  SCHEDULES: "schedules",
+  SCHEDULE_ITEMS: "scheduleItems",
 } as const;

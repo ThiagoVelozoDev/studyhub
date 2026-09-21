@@ -85,6 +85,34 @@ export interface PlanTopic {
   oculta: boolean;
 }
 
+export type ScheduleStatus = "ativo" | "arquivado";
+
+export interface Schedule {
+  id: string;
+  userId: string;
+  planoId: string;
+  status: ScheduleStatus;
+  minutosPorDia: number;
+  questoesPorDia: number;
+  materiasPorDia: number;
+  diasEstudo: string[];
+  numeroSemanas: number;
+  createdAt: Timestamp;
+}
+
+export interface ScheduleItem {
+  id: string;
+  userId: string;
+  cronogramaId: string;
+  semana: number;
+  diaSemana: string;
+  disciplinaId: string;
+  ordem: number;
+  minutosPlanejados: number;
+  questoesPlanejadas: number;
+  concluido: boolean;
+}
+
 export type SessionType = "aula" | "questoes" | "simulado";
 
 export interface StudySession {
